@@ -247,13 +247,28 @@ function AuthCard() {
   }
 
   async function handleOAuth(provider: "google" | "azure") {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-      },
-    });
+  setLoading(true);
+
+  const options =
+    provider === "azure"
+      ? {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+          scopes: "openid email profile User.Read",
+        }
+      : {
+          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        };
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options,
+  });
+
+  if (error) {
+    setMessage({ type: "error", text: error.message });
+    setLoading(false);
+  }
+}
 
     if (error) {
       setMessage({ type: "error", text: error.message });
