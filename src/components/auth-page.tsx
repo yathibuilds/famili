@@ -245,7 +245,7 @@ function AuthCard() {
 
     setLoading(false);
   }
-  
+
   async function handleOAuth(provider: "google" | "azure") {
     setLoading(true);
 
@@ -269,7 +269,7 @@ function AuthCard() {
       setLoading(false);
     }
   }
-  
+
   return (
     <div className="authShell">
       <div className="authIntro panel">
@@ -363,10 +363,6 @@ function AuthCard() {
         <button className="linkButton" onClick={() => void handleForgotPassword()} disabled={loading}>
           Forgot password?
         </button>
-
-        <p className="tinyMuted">
-          2FA will be added right after this auth step is working. We will guide you through it step by step.
-        </p>
       </div>
     </div>
   );
@@ -375,22 +371,54 @@ function AuthCard() {
 export function AuthPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requiresMfa, setRequiresMfa] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) {
-        setSession(data.session ?? null);
+    async function syncSession(nextSession: Session | null) {
+      if (!mounted) return;
+
+      setSession(nextSession);
+
+      if (!nextSession?.user) {
+        setRequiresMfa(false);
         setLoading(false);
+        return;
       }
+
+      const [{ data: factorsData, error: factorsError }, { data: aalData, error: aalError }] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      ]);
+
+      if (!mounted) return;
+
+      if (factorsError || aalError) {
+        setRequiresMfa(false);
+        setLoading(false);
+        return;
+      }
+
+      const verifiedTotpFactors = (factorsData?.totp ?? []).filter((factor) => factor.status === "verified");
+      const mustVerifyMfa = verifiedTotpFactors.length > 0 && aalData.nextLevel === "aal2" && aalData.currentLevel !== "aal2";
+
+      setRequiresMfa(mustVerifyMfa);
+      setLoading(false);
+
+      if (mustVerifyMfa && typeof window !== "undefined" && window.location.pathname !== "/auth/mfa") {
+        window.location.replace("/auth/mfa");
+      }
+    }
+
+    void supabase.auth.getSession().then(({ data }) => {
+      void syncSession(data.session ?? null);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setLoading(false);
+      void syncSession(nextSession);
     });
 
     return () => {
@@ -412,6 +440,17 @@ export function AuthPage() {
 
   if (!session?.user) {
     return <AuthCard />;
+  }
+
+  if (requiresMfa) {
+    return (
+      <main className="centerScreen">
+        <div className="panel loadingPanel">
+          <p className="eyebrow">Famli</p>
+          <h2>Redirecting to two-factor verification...</h2>
+        </div>
+      </main>
+    );
   }
 
   return <Dashboard email={session.user.email ?? "Signed in user"} />;
