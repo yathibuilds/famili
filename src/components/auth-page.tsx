@@ -245,37 +245,31 @@ function AuthCard() {
 
     setLoading(false);
   }
-
+  
   async function handleOAuth(provider: "google" | "azure") {
-  setLoading(true);
+    setLoading(true);
 
-  const options =
-    provider === "azure"
-      ? {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          scopes: "openid email profile User.Read",
-        }
-      : {
-          redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-        };
+    const options =
+      provider === "azure"
+        ? {
+            redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+            scopes: "openid email profile User.Read",
+          }
+        : {
+            redirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+          };
 
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options,
-  });
-
-  if (error) {
-    setMessage({ type: "error", text: error.message });
-    setLoading(false);
-  }
-}
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options,
+    });
 
     if (error) {
       setMessage({ type: "error", text: error.message });
       setLoading(false);
     }
   }
-
+  
   return (
     <div className="authShell">
       <div className="authIntro panel">
