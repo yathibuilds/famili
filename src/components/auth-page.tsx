@@ -32,10 +32,13 @@ function Dashboard({ email }: { email: string }) {
             <a className="button primary" href="#tasks">
               Review tasks
             </a>
+            <a className="button" href="/settings/security">
+              Security
+            </a>
             <button className="button" onClick={() => void supabase.auth.signOut()}>
               Log out
             </button>
-          </div>
+          </div>    
         </header>
 
         <section className="grid cards">
