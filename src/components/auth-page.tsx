@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/sidebar";
-import { calendarItems, financeQueue, household, summaryCards, tasks } from "@/lib/mock-data";
+import { summaryCards } from "@/lib/mock-data";
 import { TasksCard } from "@/components/tasks/tasks-card";
 import { MembersCard } from "@/components/family/members-card";
 
@@ -15,23 +15,33 @@ type MessageState = {
   text: string;
 } | null;
 
-// ✅ ADD THIS FUNCTION
 async function ensureFamily() {
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
-  const { data } = await supabase
+  if (userError || !user) return;
+
+  const { data, error: familyLookupError } = await supabase
     .from("families")
     .select("id")
-    .eq("created_by", user?.id)
+    .eq("created_by", user.id)
     .maybeSingle();
 
-  if (!data && user) {
-    await supabase.from("families").insert({
+  if (familyLookupError) {
+    throw familyLookupError;
+  }
+
+  if (!data) {
+    const { error: insertError } = await supabase.from("families").insert({
       name: "My Family",
       created_by: user.id,
     });
+
+    if (insertError) {
+      throw insertError;
+    }
   }
 }
 
@@ -97,14 +107,30 @@ function AuthCard() {
     event.preventDefault();
     setMessage(null);
 
+    if (tab === "signup" && password !== confirmPassword) {
+      setMessage({ type: "error", text: "Passwords do not match." });
+      return;
+    }
+
     setLoading(true);
 
     if (tab === "login") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage({ type: "error", text: error.message });
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+      } else {
+        setMessage({ type: "success", text: "Logged in successfully." });
+      }
     } else {
       const { error } = await supabase.auth.signUp({ email, password });
-      if (error) setMessage({ type: "error", text: error.message });
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+      } else {
+        setMessage({
+          type: "success",
+          text: "Account created. Check your email if Supabase asks you to confirm it.",
+        });
+      }
     }
 
     setLoading(false);
@@ -113,10 +139,55 @@ function AuthCard() {
   return (
     <div className="authShell">
       <div className="panel authCard">
-        <form onSubmit={handleSubmit}>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input value={password} onChange={(e) => setPassword(e.target.value)} />
-          <button type="submit">Submit</button>
+        <div className="authTabs">
+          <button className={tab === "login" ? "tabButton active" : "tabButton"} onClick={() => setTab("login")}>
+            Login
+          </button>
+          <button className={tab === "signup" ? "tabButton active" : "tabButton"} onClick={() => setTab("signup")}>
+            Sign up
+          </button>
+        </div>
+
+        <form className="authForm" onSubmit={handleSubmit}>
+          <label>
+            <span>Email</span>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              placeholder="Enter password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+
+          {tab === "signup" ? (
+            <label>
+              <span>Confirm password</span>
+              <input
+                type="password"
+                placeholder="Confirm password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+              />
+            </label>
+          ) : null}
+
+          {message ? (
+            <div className={message.type === "error" ? "notice error" : "notice success"}>{message.text}</div>
+          ) : null}
+
+          <button className="button primary wideButton" type="submit" disabled={!canSubmit || loading}>
+            {loading ? "Please wait..." : tab === "login" ? "Login" : "Create account"}
+          </button>
         </form>
       </div>
     </div>
@@ -126,6 +197,7 @@ function AuthCard() {
 export function AuthPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requiresMfa, setRequiresMfa] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -136,24 +208,60 @@ export function AuthPage() {
       setSession(nextSession);
 
       if (!nextSession?.user) {
+        setRequiresMfa(false);
         setLoading(false);
         return;
       }
 
-      // ✅ THIS IS THE CORRECT PLACE
-      await ensureFamily();
+      try {
+        await ensureFamily();
 
-      setLoading(false);
+        const [{ data: factorsData, error: factorsError }, { data: aalData, error: aalError }] =
+          await Promise.all([
+            supabase.auth.mfa.listFactors(),
+            supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+          ]);
+
+        if (!mounted) return;
+
+        if (factorsError || aalError) {
+          setRequiresMfa(false);
+          return;
+        }
+
+        const verifiedTotpFactors = (factorsData?.totp ?? []).filter(
+          (factor) => factor.status === "verified"
+        );
+
+        const mustVerifyMfa =
+          verifiedTotpFactors.length > 0 &&
+          aalData.nextLevel === "aal2" &&
+          aalData.currentLevel !== "aal2";
+
+        setRequiresMfa(mustVerifyMfa);
+
+        if (mustVerifyMfa && typeof window !== "undefined" && window.location.pathname !== "/auth/mfa") {
+          window.location.replace("/auth/mfa");
+        }
+      } catch (error) {
+        console.error("Auth/session setup failed", error);
+        setRequiresMfa(false);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      syncSession(data.session);
+    void supabase.auth.getSession().then(({ data }) => {
+      void syncSession(data.session ?? null);
     });
 
-    const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((_event, nextSession) => {
-        syncSession(nextSession);
-      });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      void syncSession(nextSession);
+    });
 
     return () => {
       mounted = false;
@@ -161,9 +269,31 @@ export function AuthPage() {
     };
   }, []);
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return (
+      <main className="centerScreen">
+        <div className="panel loadingPanel">
+          <p className="eyebrow">Famli</p>
+          <h2>Loading your session...</h2>
+        </div>
+      </main>
+    );
+  }
 
-  if (!session?.user) return <AuthCard />;
+  if (!session?.user) {
+    return <AuthCard />;
+  }
 
-  return <Dashboard email={session.user.email ?? ""} />;
+  if (requiresMfa) {
+    return (
+      <main className="centerScreen">
+        <div className="panel loadingPanel">
+          <p className="eyebrow">Famli</p>
+          <h2>Redirecting to two-factor verification...</h2>
+        </div>
+      </main>
+    );
+  }
+
+  return <Dashboard email={session.user.email ?? "Signed in user"} />;
 }
