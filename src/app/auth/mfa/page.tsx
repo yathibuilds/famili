@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
@@ -8,98 +9,6 @@ type Factor = {
   id: string;
   friendly_name?: string;
   status: string;
-};
-
-const styles = {
-  shell: {
-    minHeight: "100vh",
-    background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)",
-    padding: "24px",
-    color: "#0f172a",
-  } as React.CSSProperties,
-  wrap: {
-    maxWidth: "520px",
-    margin: "0 auto",
-    display: "grid",
-    gap: "16px",
-  } as React.CSSProperties,
-  hero: {
-    borderRadius: "22px",
-    padding: "22px",
-    background: "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)",
-    color: "#ffffff",
-  } as React.CSSProperties,
-  heroTitle: {
-    margin: 0,
-    fontSize: "28px",
-    fontWeight: 700,
-  } as React.CSSProperties,
-  heroText: {
-    margin: "8px 0 0 0",
-    color: "#dbeafe",
-    fontSize: "14px",
-    lineHeight: 1.5,
-  } as React.CSSProperties,
-  card: {
-    border: "1px solid #e5e7eb",
-    borderRadius: "20px",
-    background: "#ffffff",
-    padding: "20px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-  } as React.CSSProperties,
-  label: {
-    display: "block",
-    marginBottom: "6px",
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "#334155",
-  } as React.CSSProperties,
-  input: {
-    width: "100%",
-    padding: "11px 12px",
-    borderRadius: "10px",
-    border: "1px solid #cbd5e1",
-    fontSize: "14px",
-    color: "#0f172a",
-    background: "#ffffff",
-    boxSizing: "border-box",
-  } as React.CSSProperties,
-  primaryButton: {
-    width: "100%",
-    background: "#0f172a",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "10px",
-    padding: "11px 14px",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
-  secondaryButton: {
-    width: "100%",
-    background: "#eff6ff",
-    color: "#1d4ed8",
-    border: "1px solid #bfdbfe",
-    borderRadius: "10px",
-    padding: "11px 14px",
-    fontSize: "14px",
-    fontWeight: 600,
-    cursor: "pointer",
-  } as React.CSSProperties,
-  note: {
-    margin: 0,
-    fontSize: "13px",
-    color: "#64748b",
-    lineHeight: 1.5,
-  } as React.CSSProperties,
-  message: {
-    border: "1px solid #e5e7eb",
-    borderRadius: "14px",
-    background: "#f8fafc",
-    padding: "12px 14px",
-    color: "#334155",
-    fontSize: "14px",
-  } as React.CSSProperties,
 };
 
 export default function MfaPage() {
@@ -122,8 +31,12 @@ export default function MfaPage() {
 
       const verified = (data?.totp ?? []).filter((factor) => factor.status === "verified");
       setFactors(verified);
-      if (verified[0]) setSelectedFactorId(verified[0].id);
-      if (verified.length === 0) setMessage("No verified authenticator app found for this account.");
+
+      if (verified[0]) {
+        setSelectedFactorId(verified[0].id);
+      } else {
+        setMessage("No verified authenticator app found for this account.");
+      }
     }
 
     void loadFactors();
@@ -145,7 +58,7 @@ export default function MfaPage() {
     }
 
     setChallengeId(data.id);
-    setMessage("Enter the current code from your authenticator app.");
+    setMessage("Enter the current 6-digit code from your authenticator app.");
   }
 
   async function verifyCode() {
@@ -171,24 +84,25 @@ export default function MfaPage() {
   }
 
   return (
-    <main style={styles.shell}>
-      <div style={styles.wrap}>
-        <div style={styles.hero}>
-          <h1 style={styles.heroTitle}>Two-factor verification</h1>
-          <p style={styles.heroText}>
-            Complete sign-in with your authenticator app so your Famli workspace stays protected.
+    <main className="min-h-screen bg-neutral-950 px-6 py-8 text-white md:px-10">
+      <div className="mx-auto grid max-w-lg gap-6">
+        <div className="rounded-3xl border border-neutral-800 bg-gradient-to-br from-cyan-500/15 via-neutral-900 to-neutral-900 p-6 shadow-2xl shadow-black/20">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Two-factor sign-in</p>
+          <h1 className="mt-3 text-2xl font-semibold">Verify your identity</h1>
+          <p className="mt-2 text-sm leading-6 text-neutral-300">
+            Complete sign-in with your authenticator app before entering your Famli workspace.
           </p>
         </div>
 
-        <div style={styles.card}>
-          <div style={{ display: "grid", gap: "14px" }}>
-            {factors.length > 0 && (
-              <div>
-                <label style={styles.label}>Authenticator app</label>
+        <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-2xl shadow-black/20">
+          <div className="space-y-5">
+            {factors.length > 0 ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-neutral-200">Authenticator app</label>
                 <select
                   value={selectedFactorId}
-                  onChange={(e) => setSelectedFactorId(e.target.value)}
-                  style={styles.input}
+                  onChange={(event) => setSelectedFactorId(event.target.value)}
+                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none ring-0 transition focus:border-cyan-400"
                 >
                   {factors.map((factor) => (
                     <option key={factor.id} value={factor.id}>
@@ -197,51 +111,52 @@ export default function MfaPage() {
                   ))}
                 </select>
               </div>
-            )}
+            ) : null}
 
-            <p style={styles.note}>
-              First request a code challenge, then enter the 6-digit code shown in your authenticator app.
-            </p>
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4 text-sm leading-6 text-neutral-400">
+              Request a challenge first, then enter the current 6-digit code shown by your authenticator app.
+            </div>
 
             <button
               onClick={createChallenge}
               disabled={loading || !selectedFactorId}
-              style={{
-                ...styles.secondaryButton,
-                opacity: loading || !selectedFactorId ? 0.6 : 1,
-                cursor: loading || !selectedFactorId ? "not-allowed" : "pointer",
-              }}
+              className="w-full rounded-2xl border border-neutral-700 bg-neutral-800 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Preparing..." : "Get code challenge"}
             </button>
 
-            <div>
-              <label style={styles.label}>Verification code</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-200">Verification code</label>
               <input
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
+                onChange={(event) => setCode(event.target.value)}
                 placeholder="Enter 6-digit code"
                 inputMode="numeric"
-                style={styles.input}
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
               />
             </div>
 
             <button
               onClick={verifyCode}
               disabled={loading || !challengeId || code.trim().length < 6}
-              style={{
-                ...styles.primaryButton,
-                opacity: loading || !challengeId || code.trim().length < 6 ? 0.6 : 1,
-                cursor:
-                  loading || !challengeId || code.trim().length < 6 ? "not-allowed" : "pointer",
-              }}
+              className="w-full rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Verifying..." : "Verify and continue"}
             </button>
           </div>
-        </div>
+        </section>
 
-        {message && <div style={styles.message}>{message}</div>}
+        {message ? (
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 px-4 py-3 text-sm text-neutral-300">
+            {message}
+          </div>
+        ) : null}
+
+        <div className="text-center text-sm text-neutral-500">
+          <Link href="/settings/security" className="transition hover:text-neutral-300">
+            Back to security settings
+          </Link>
+        </div>
       </div>
     </main>
   );
