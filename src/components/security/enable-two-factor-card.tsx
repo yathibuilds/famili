@@ -22,13 +22,18 @@ export function EnableTwoFactorCard() {
   const [removeFactorId, setRemoveFactorId] = useState<string | null>(null);
 
   useEffect(() => {
-    loadFactors();
+    void loadFactors();
   }, []);
 
   async function loadFactors() {
-    const { data } = await supabase.auth.mfa.listFactors();
-    const verified =
-      data?.totp?.filter((f) => f.status === "verified") ?? [];
+    const { data, error } = await supabase.auth.mfa.listFactors();
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    const verified = data?.totp?.filter((f) => f.status === "verified") ?? [];
     setFactors(verified);
   }
 
@@ -48,6 +53,11 @@ export function EnableTwoFactorCard() {
       return;
     }
 
+    if (!data) {
+      setMessage("Could not start 2FA setup.");
+      return;
+    }
+
     setFactorId(data.id);
     setQrCode(data.totp.qr_code);
     setSecret(data.totp.secret);
@@ -57,10 +67,24 @@ export function EnableTwoFactorCard() {
     if (!factorId) return;
 
     setLoading(true);
+    setMessage("");
 
-    const { data: challengeData } = await supabase.auth.mfa.challenge({
-      factorId,
-    });
+    const { data: challengeData, error: challengeError } =
+      await supabase.auth.mfa.challenge({
+        factorId,
+      });
+
+    if (challengeError) {
+      setLoading(false);
+      setMessage(challengeError.message);
+      return;
+    }
+
+    if (!challengeData) {
+      setLoading(false);
+      setMessage("Could not create verification challenge.");
+      return;
+    }
 
     const { error } = await supabase.auth.mfa.verify({
       factorId,
@@ -79,12 +103,14 @@ export function EnableTwoFactorCard() {
     setQrCode(null);
     setSecret(null);
     setCode("");
-    loadFactors();
+    setFactorId(null);
+    await loadFactors();
   }
 
-  async function startRemove(factorId: string) {
-    setRemoveFactorId(factorId);
+  function startRemove(nextFactorId: string) {
+    setRemoveFactorId(nextFactorId);
     setShowRemoveVerify(true);
+    setRemoveCode("");
     setMessage("Enter code to confirm removal");
   }
 
@@ -92,10 +118,24 @@ export function EnableTwoFactorCard() {
     if (!removeFactorId) return;
 
     setLoading(true);
+    setMessage("");
 
-    const { data: challengeData } = await supabase.auth.mfa.challenge({
-      factorId: removeFactorId,
-    });
+    const { data: challengeData, error: challengeError } =
+      await supabase.auth.mfa.challenge({
+        factorId: removeFactorId,
+      });
+
+    if (challengeError) {
+      setLoading(false);
+      setMessage(challengeError.message);
+      return;
+    }
+
+    if (!challengeData) {
+      setLoading(false);
+      setMessage("Could not create removal challenge.");
+      return;
+    }
 
     const { error: verifyError } = await supabase.auth.mfa.verify({
       factorId: removeFactorId,
@@ -123,18 +163,19 @@ export function EnableTwoFactorCard() {
     setMessage("2FA removed successfully");
     setShowRemoveVerify(false);
     setRemoveCode("");
-    loadFactors();
+    setRemoveFactorId(null);
+    await loadFactors();
   }
 
   return (
     <div className="space-y-4">
       {factors.length > 0 && (
-        <div>
+        <div className="space-y-4">
           <p>2FA is enabled on this account.</p>
 
           {factors.map((f) => (
             <div key={f.id} className="space-y-2">
-              <p>{f.friendly_name}</p>
+              <p>{f.friendly_name || "Authenticator app"}</p>
               <p>Status: {f.status}</p>
 
               {!showRemoveVerify && (
@@ -150,13 +191,15 @@ export function EnableTwoFactorCard() {
                 onChange={(e) => setRemoveCode(e.target.value)}
                 placeholder="Enter 6-digit code"
               />
-              <button onClick={confirmRemove} disabled={loading}>
+              <button onClick={confirmRemove} disabled={loading || removeCode.length < 6}>
                 Confirm removal
               </button>
             </div>
           )}
 
-          <button onClick={handleEnroll}>Add another authenticator</button>
+          <button onClick={handleEnroll} disabled={loading}>
+            Add another authenticator
+          </button>
 
           <div className="flex gap-2 mt-4">
             <a href="/">Go to dashboard</a>
@@ -182,7 +225,7 @@ export function EnableTwoFactorCard() {
             placeholder="Enter 6-digit code"
           />
 
-          <button onClick={handleVerify} disabled={loading}>
+          <button onClick={handleVerify} disabled={loading || code.length < 6}>
             Verify
           </button>
         </div>
