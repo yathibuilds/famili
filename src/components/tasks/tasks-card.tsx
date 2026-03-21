@@ -80,6 +80,7 @@ export function TasksCard() {
 
   async function loadMembers() {
     const familyId = await getFamilyId();
+
     if (!familyId) {
       setMembers([]);
       return;
@@ -365,14 +366,11 @@ export function TasksCard() {
       </div>
 
       <div className="space-y-2">
-        <input
-          placeholder="Task title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        <input placeholder="Task title" value={title} onChange={(e) => setTitle(e.target.value)} />
+
+        <p style={{ color: "red" }}>Members loaded: {members.length}</p>
 
         <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
-          <p style={{ color: "red" }}>Members loaded: {members.length}</p>
           <option value="">Assign to member (optional)</option>
           {members.map((member) => (
             <option key={member.id} value={member.id}>
@@ -389,11 +387,7 @@ export function TasksCard() {
           ))}
         </select>
 
-        <input
-          type="date"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-        />
+        <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
 
         <button onClick={() => void addTask()}>Add Task</button>
       </div>
@@ -419,17 +413,11 @@ export function TasksCard() {
 
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
-            {task.deadline_revision_count > 0 && (
-              <p>Revised {task.deadline_revision_count} times</p>
-            )}
+            {task.deadline_revision_count > 0 && <p>Revised {task.deadline_revision_count} times</p>}
 
             {editingTaskId === task.id ? (
               <>
-                <input
-                  type="date"
-                  value={newDeadline}
-                  onChange={(e) => setNewDeadline(e.target.value)}
-                />
+                <input type="date" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
                 <button onClick={() => void saveNewDeadline(task)}>Save</button>
               </>
             ) : (
@@ -456,9 +444,7 @@ export function TasksCard() {
 
             <p>{getCompletionLabel(task)}</p>
 
-            {task.deadline_revision_count > 0 && (
-              <p>Revised {task.deadline_revision_count} times</p>
-            )}
+            {task.deadline_revision_count > 0 && <p>Revised {task.deadline_revision_count} times</p>}
           </div>
         ))}
       </div>
