@@ -41,7 +41,9 @@ function Dashboard({ email }: { email: string }) {
             </button>
           </div>    
         </header>
-
+       
+        <TasksCard />
+                
         <section className="grid cards">
           {summaryCards.map((card) => (
             <article key={card.title} className="panel statCard">
