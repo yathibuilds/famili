@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Task = {
@@ -13,6 +13,8 @@ type Task = {
   deadline_revision_count: number;
   category: string | null;
 };
+
+type FilterType = "all" | "pending" | "done";
 
 const categories = [
   "Groceries",
@@ -38,6 +40,7 @@ export function TasksCard() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [newDeadline, setNewDeadline] = useState("");
   const [message, setMessage] = useState("");
+  const [filter, setFilter] = useState<FilterType>("all");
 
   useEffect(() => {
     void loadTasks();
@@ -154,6 +157,101 @@ export function TasksCard() {
     await loadTasks();
   }
 
+  function getTodayString() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function getTaskTiming(task: Task) {
+    if (!task.current_deadline || task.status === "done") {
+      return "none";
+    }
+
+    const today = getTodayString();
+
+    if (task.current_deadline < today) {
+      return "overdue";
+    }
+
+    if (task.current_deadline === today) {
+      return "today";
+    }
+
+    return "upcoming";
+  }
+
+  function getTaskCardStyle(task: Task) {
+    const timing = getTaskTiming(task);
+
+    if (task.status === "done") {
+      return {
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+      };
+    }
+
+    if (timing === "overdue") {
+      return {
+        border: "1px solid rgba(255, 99, 132, 0.8)",
+        background: "rgba(255, 99, 132, 0.08)",
+      };
+    }
+
+    if (timing === "today") {
+      return {
+        border: "1px solid rgba(255, 205, 86, 0.8)",
+        background: "rgba(255, 205, 86, 0.08)",
+      };
+    }
+
+    return {
+      border: "1px solid rgba(255,255,255,0.12)",
+      background: "rgba(255,255,255,0.03)",
+    };
+  }
+
+  function getTaskTimingLabel(task: Task) {
+    const timing = getTaskTiming(task);
+
+    if (task.status === "done") return "Completed";
+    if (timing === "overdue") return "Overdue";
+    if (timing === "today") return "Due today";
+    if (timing === "upcoming") return "Upcoming";
+
+    return "";
+  }
+
+  function getSortRank(task: Task) {
+    const timing = getTaskTiming(task);
+
+    if (task.status !== "done" && timing === "overdue") return 1;
+    if (task.status !== "done" && timing === "today") return 2;
+    if (task.status !== "done" && timing === "upcoming") return 3;
+    if (task.status !== "done") return 4;
+    return 5;
+  }
+
+  const visibleTasks = useMemo(() => {
+    const filtered = tasks.filter((task) => {
+      if (filter === "pending") return task.status !== "done";
+      if (filter === "done") return task.status === "done";
+      return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const rankDifference = getSortRank(a) - getSortRank(b);
+      if (rankDifference !== 0) return rankDifference;
+
+      const aDeadline = a.current_deadline || "9999-12-31";
+      const bDeadline = b.current_deadline || "9999-12-31";
+
+      return aDeadline.localeCompare(bDeadline);
+    });
+  }, [tasks, filter]);
+
   return (
     <div className="space-y-4" id="tasks">
       <h2>Tasks</h2>
@@ -188,16 +286,32 @@ export function TasksCard() {
         <button onClick={addTask}>Add Task</button>
       </div>
 
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button onClick={() => setFilter("all")}>All</button>
+        <button onClick={() => setFilter("pending")}>Pending</button>
+        <button onClick={() => setFilter("done")}>Done</button>
+      </div>
+
       {message && <p>{message}</p>}
 
       <div className="space-y-2">
-        {tasks.map((task) => (
-          <div key={task.id} className="border p-2 space-y-1">
+        {visibleTasks.map((task) => (
+          <div
+            key={task.id}
+            className="p-3 space-y-1"
+            style={getTaskCardStyle(task)}
+          >
             <p>{task.title}</p>
+
+            {getTaskTimingLabel(task) && (
+              <p>{getTaskTimingLabel(task)}</p>
+            )}
 
             {task.category && <p>Category: {task.category}</p>}
 
-            {task.assigned_to_label && <p>Assigned to: {task.assigned_to_label}</p>}
+            {task.assigned_to_label && (
+              <p>Assigned to: {task.assigned_to_label}</p>
+            )}
 
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
@@ -214,15 +328,17 @@ export function TasksCard() {
                 />
                 <button onClick={() => void saveNewDeadline(task)}>Save</button>
               </div>
-            ) : (
+            ) : task.status !== "done" ? (
               <button onClick={() => startEdit(task)}>Edit Deadline</button>
-            )}
+            ) : null}
 
             {task.status !== "done" && (
               <button onClick={() => void markDone(task.id)}>Mark Done</button>
             )}
           </div>
         ))}
+
+        {visibleTasks.length === 0 && <p>No tasks in this view yet.</p>}
       </div>
     </div>
   );
