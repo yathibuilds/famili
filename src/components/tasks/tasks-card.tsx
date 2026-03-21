@@ -364,39 +364,113 @@ export function TasksCard() {
         ))}
       </div>
 
-      <div className="space-y-2">
-        <input
-          placeholder="Task title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+      <div
+  style={{
+    border: "1px solid #e5e7eb",
+    borderRadius: "16px",
+    padding: "16px",
+    background: "#fafafa",
+    display: "grid",
+    gap: "12px",
+  }}
+>
+  <div>
+    <label style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}>Task title</label>
+    <input
+      placeholder="Enter task title"
+      value={title}
+      onChange={(e) => setTitle(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        border: "1px solid #d1d5db",
+        borderRadius: "10px",
+        fontSize: "14px",
+        boxSizing: "border-box",
+      }}
+    />
+  </div>
 
-        <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
-          <option value="">Assign to member (optional)</option>
-          {members.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.name}
-            </option>
-          ))}
-        </select>
+  <div>
+    <label style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}>Assign to</label>
+    <select
+      value={selectedMemberId}
+      onChange={(e) => setSelectedMemberId(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        border: "1px solid #d1d5db",
+        borderRadius: "10px",
+        fontSize: "14px",
+        boxSizing: "border-box",
+        background: "white",
+      }}
+    >
+      <option value="">Assign to member (optional)</option>
+      {members.map((member) => (
+        <option key={member.id} value={member.id}>
+          {member.name}
+        </option>
+      ))}
+    </select>
+  </div>
 
-        <select value={category} onChange={(e) => setCategory(e.target.value)}>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+  <div>
+    <label style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}>Category</label>
+    <select
+      value={category}
+      onChange={(e) => setCategory(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        border: "1px solid #d1d5db",
+        borderRadius: "10px",
+        fontSize: "14px",
+        boxSizing: "border-box",
+        background: "white",
+      }}
+    >
+      {categories.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  </div>
 
-        <input
-          type="date"
-          value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
-        />
+  <div>
+    <label style={{ display: "block", marginBottom: "6px", fontWeight: 600 }}>Deadline</label>
+    <input
+      type="date"
+      value={deadline}
+      onChange={(e) => setDeadline(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "10px 12px",
+        border: "1px solid #d1d5db",
+        borderRadius: "10px",
+        fontSize: "14px",
+        boxSizing: "border-box",
+      }}
+    />
+  </div>
 
-        <button onClick={() => void addTask()}>Add Task</button>
-      </div>
-
+  <button
+    onClick={() => void addTask()}
+    style={{
+      background: "#111827",
+      color: "white",
+      border: "none",
+      borderRadius: "10px",
+      padding: "12px 16px",
+      fontWeight: 600,
+      cursor: "pointer",
+    }}
+  >
+    Add Task
+  </button>
+</div>
+      
       <div style={{ display: "flex", gap: "8px" }}>
         <button onClick={() => setFilter("all")}>All</button>
         <button onClick={() => setFilter("pending")}>Pending</button>
