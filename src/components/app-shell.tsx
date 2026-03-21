@@ -57,12 +57,15 @@ function Dashboard({ email }: { email: string }) {
         >
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Famli workspace</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+                FamiliHub workspace
+              </p>
               <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
                 Your private family operations hub
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-300">
-                Signed in as <span className="font-medium text-white">{email}</span>. Keep tasks, members, and security in one clean workspace.
+                Signed in as <span className="font-medium text-white">{email}</span>. Keep
+                tasks, members, and security in one clean workspace.
               </p>
             </div>
 
@@ -160,10 +163,15 @@ function AuthCard() {
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-white md:px-10">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl items-center gap-6 lg:grid-cols-[minmax(0,1.2fr)_420px]">
         <section className="rounded-3xl border border-neutral-800 bg-gradient-to-br from-cyan-500/15 via-neutral-900 to-neutral-900 p-8 shadow-2xl shadow-black/20">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Famli</p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">Shared family life, finally organised.</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+            FamiliHub
+          </p>
+          <h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">
+            Shared family life, finally organised.
+          </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-300">
-            Bring tasks, household planning, and personal coordination into one calm private workspace.
+            Bring tasks, household planning, and personal coordination into one calm
+            private workspace.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -343,7 +351,9 @@ export function AppShell() {
     return (
       <main className="grid min-h-screen place-items-center bg-neutral-950 px-6 py-8 text-white">
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-8 shadow-2xl shadow-black/20">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Famli</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+            FamiliHub
+          </p>
           <h2 className="mt-3 text-2xl font-semibold">Loading your session...</h2>
         </div>
       </main>
@@ -358,7 +368,9 @@ export function AppShell() {
     return (
       <main className="grid min-h-screen place-items-center bg-neutral-950 px-6 py-8 text-white">
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-8 shadow-2xl shadow-black/20">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Famli</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+            FamiliHub
+          </p>
           <h2 className="mt-3 text-2xl font-semibold">Redirecting to two-factor verification...</h2>
         </div>
       </main>
