@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Famli Starter",
-  description: "Starter project for Famli",
+  title: "FamiliHub",
+  description: "Private family hub for tasks, members, and secure coordination.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
