@@ -190,6 +190,7 @@ export function TasksCard() {
       return {
         border: "1px solid rgba(255,255,255,0.12)",
         background: "rgba(255,255,255,0.04)",
+        borderRadius: "16px",
       };
     }
 
@@ -197,6 +198,7 @@ export function TasksCard() {
       return {
         border: "1px solid rgba(255, 99, 132, 0.8)",
         background: "rgba(255, 99, 132, 0.08)",
+        borderRadius: "16px",
       };
     }
 
@@ -204,12 +206,14 @@ export function TasksCard() {
       return {
         border: "1px solid rgba(255, 205, 86, 0.8)",
         background: "rgba(255, 205, 86, 0.08)",
+        borderRadius: "16px",
       };
     }
 
     return {
       border: "1px solid rgba(255,255,255,0.12)",
       background: "rgba(255,255,255,0.03)",
+      borderRadius: "16px",
     };
   }
 
@@ -234,6 +238,28 @@ export function TasksCard() {
     return 5;
   }
 
+  const summary = useMemo(() => {
+    let overdue = 0;
+    let dueToday = 0;
+    let pending = 0;
+    let done = 0;
+
+    for (const task of tasks) {
+      if (task.status === "done") {
+        done += 1;
+        continue;
+      }
+
+      pending += 1;
+
+      const timing = getTaskTiming(task);
+      if (timing === "overdue") overdue += 1;
+      if (timing === "today") dueToday += 1;
+    }
+
+    return { overdue, dueToday, pending, done };
+  }, [tasks]);
+
   const visibleTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
       if (filter === "pending") return task.status !== "done";
@@ -255,6 +281,62 @@ export function TasksCard() {
   return (
     <div className="space-y-4" id="tasks">
       <h2>Tasks</h2>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gap: "12px",
+        }}
+      >
+        <div
+          style={{
+            border: "1px solid rgba(255, 99, 132, 0.5)",
+            background: "rgba(255, 99, 132, 0.08)",
+            borderRadius: "16px",
+            padding: "16px",
+          }}
+        >
+          <p>Overdue</p>
+          <h3>{summary.overdue}</h3>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(255, 205, 86, 0.5)",
+            background: "rgba(255, 205, 86, 0.08)",
+            borderRadius: "16px",
+            padding: "16px",
+          }}
+        >
+          <p>Due today</p>
+          <h3>{summary.dueToday}</h3>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: "16px",
+            padding: "16px",
+          }}
+        >
+          <p>Pending</p>
+          <h3>{summary.pending}</h3>
+        </div>
+
+        <div
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            borderRadius: "16px",
+            padding: "16px",
+          }}
+        >
+          <p>Done</p>
+          <h3>{summary.done}</h3>
+        </div>
+      </div>
 
       <div className="space-y-2">
         <input
@@ -303,9 +385,7 @@ export function TasksCard() {
           >
             <p>{task.title}</p>
 
-            {getTaskTimingLabel(task) && (
-              <p>{getTaskTimingLabel(task)}</p>
-            )}
+            {getTaskTimingLabel(task) && <p>{getTaskTimingLabel(task)}</p>}
 
             {task.category && <p>Category: {task.category}</p>}
 
