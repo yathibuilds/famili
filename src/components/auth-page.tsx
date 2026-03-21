@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/sidebar";
 import { calendarItems, financeQueue, household, summaryCards, tasks } from "@/lib/mock-data";
+import { TasksCard } from "@/components/tasks/tasks-card";
 
 type AuthTab = "login" | "signup";
 
