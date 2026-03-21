@@ -1,5 +1,5 @@
-import { AuthPage } from "@/components/auth-page";
+import { AppShell } from "@/components/app-shell";
 
 export default function Home() {
-  return <AuthPage />;
+  return <AppShell />;
 }
