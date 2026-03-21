@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type Factor = {
@@ -18,6 +19,7 @@ export function EnableTwoFactorCard() {
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [verifiedFactors, setVerifiedFactors] = useState<Factor[]>([]);
+  const [setupComplete, setSetupComplete] = useState(false);
 
   async function loadFactors() {
     const { data, error } = await supabase.auth.mfa.listFactors();
@@ -37,6 +39,7 @@ export function EnableTwoFactorCard() {
   async function handleEnroll() {
     setLoading(true);
     setMessage(null);
+    setSetupComplete(false);
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
@@ -85,6 +88,7 @@ export function EnableTwoFactorCard() {
     }
 
     setMessage("Two-factor authentication is now enabled.");
+    setSetupComplete(true);
     setCode("");
     setFactorId(null);
     setQrCode(null);
@@ -95,6 +99,7 @@ export function EnableTwoFactorCard() {
   async function handleUnenroll(id: string) {
     setLoading(true);
     setMessage(null);
+    setSetupComplete(false);
 
     const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
 
@@ -110,7 +115,7 @@ export function EnableTwoFactorCard() {
   }
 
   return (
-    <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-5">
+    <section className="space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
       <div>
         <h2 className="text-lg font-semibold">Authenticator app</h2>
         <p className="mt-1 text-sm text-neutral-400">
@@ -119,10 +124,13 @@ export function EnableTwoFactorCard() {
       </div>
 
       {verifiedFactors.length > 0 && (
-        <div className="rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 space-y-3">
+        <div className="space-y-3 rounded-xl border border-emerald-900 bg-emerald-950/40 p-4">
           <p className="text-sm text-emerald-300">2FA is enabled on this account.</p>
           {verifiedFactors.map((factor) => (
-            <div key={factor.id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
+            <div
+              key={factor.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3"
+            >
               <div>
                 <p className="font-medium">{factor.friendly_name || "Authenticator app"}</p>
                 <p className="text-xs text-neutral-400">Status: {factor.status}</p>
@@ -193,6 +201,7 @@ export function EnableTwoFactorCard() {
                 setSecret(null);
                 setCode("");
                 setMessage(null);
+                setSetupComplete(false);
               }}
               disabled={loading}
               className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
@@ -204,6 +213,23 @@ export function EnableTwoFactorCard() {
       )}
 
       {message && <p className="text-sm text-neutral-300">{message}</p>}
+
+      {setupComplete && (
+        <div className="flex flex-wrap gap-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
+          <Link
+            href="/"
+            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
+          >
+            Go to dashboard
+          </Link>
+          <Link
+            href="/settings/security"
+            className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
+          >
+            Stay on security page
+          </Link>
+        </div>
+      )}
     </section>
   );
 }
