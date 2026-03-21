@@ -12,6 +12,7 @@ type Task = {
   original_deadline: string | null;
   deadline_revision_count: number;
   category: string | null;
+  completed_at: string | null;
 };
 
 type FilterType = "all" | "pending" | "done";
@@ -91,6 +92,7 @@ export function TasksCard() {
     setAssignee("");
     setDeadline("");
     setCategory("Other");
+    setMessage("Task added.");
 
     await loadTasks();
   }
@@ -109,6 +111,7 @@ export function TasksCard() {
       return;
     }
 
+    setMessage("Task marked done.");
     await loadTasks();
   }
 
@@ -137,12 +140,12 @@ export function TasksCard() {
 
     setEditingTaskId(null);
     setNewDeadline("");
+    setMessage("Deadline updated.");
     await loadTasks();
   }
 
   function getTodayString() {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
+    return new Date().toISOString().split("T")[0];
   }
 
   function getTaskTiming(task: Task) {
@@ -153,6 +156,19 @@ export function TasksCard() {
     if (task.current_deadline < today) return "overdue";
     if (task.current_deadline === today) return "today";
     return "upcoming";
+  }
+
+  function getCompletionLabel(task: Task) {
+    if (task.status !== "done") return "";
+
+    if (!task.completed_at) return "Completed";
+    if (!task.current_deadline) return "Completed";
+
+    const completedDate = task.completed_at.split("T")[0];
+
+    if (completedDate < task.current_deadline) return "Completed before deadline";
+    if (completedDate === task.current_deadline) return "Completed on time";
+    return "Completed late";
   }
 
   function getSortRank(task: Task) {
@@ -198,6 +214,28 @@ export function TasksCard() {
     return map;
   }, [tasks]);
 
+  const insightSummary = useMemo(() => {
+    let revised = 0;
+    let completedOnTime = 0;
+    let completedLate = 0;
+
+    for (const task of tasks) {
+      if ((task.deadline_revision_count || 0) > 0) {
+        revised++;
+      }
+
+      const label = getCompletionLabel(task);
+      if (label === "Completed before deadline" || label === "Completed on time") {
+        completedOnTime++;
+      }
+      if (label === "Completed late") {
+        completedLate++;
+      }
+    }
+
+    return { revised, completedOnTime, completedLate };
+  }, [tasks]);
+
   const visibleTasks = useMemo(() => {
     let filtered = tasks;
 
@@ -213,7 +251,7 @@ export function TasksCard() {
       );
     }
 
-    return filtered.sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const rank = getSortRank(a) - getSortRank(b);
       if (rank !== 0) return rank;
 
@@ -224,11 +262,13 @@ export function TasksCard() {
     });
   }, [tasks, filter, selectedCategory]);
 
+  const pendingTasks = visibleTasks.filter((task) => task.status !== "done");
+  const completedTasks = visibleTasks.filter((task) => task.status === "done");
+
   return (
     <div className="space-y-4" id="tasks">
       <h2>Tasks</h2>
 
-      {/* Summary */}
       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
         <div>Overdue: {summary.overdue}</div>
         <div>Today: {summary.dueToday}</div>
@@ -236,21 +276,22 @@ export function TasksCard() {
         <div>Done: {summary.done}</div>
       </div>
 
-      {/* Category Filter */}
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div>Revised tasks: {insightSummary.revised}</div>
+        <div>Completed on time: {insightSummary.completedOnTime}</div>
+        <div>Completed late: {insightSummary.completedLate}</div>
+      </div>
+
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
         <button onClick={() => setSelectedCategory(null)}>All Categories</button>
 
         {Object.entries(categorySummary).map(([cat, count]) => (
-          <button
-            key={cat}
-            onClick={() => setSelectedCategory(cat)}
-          >
+          <button key={cat} onClick={() => setSelectedCategory(cat)}>
             {cat} ({count})
           </button>
         ))}
       </div>
 
-      {/* Create */}
       <div className="space-y-2">
         <input
           placeholder="Task title"
@@ -279,20 +320,25 @@ export function TasksCard() {
         <button onClick={addTask}>Add Task</button>
       </div>
 
-      {/* Status filter */}
       <div style={{ display: "flex", gap: "8px" }}>
         <button onClick={() => setFilter("all")}>All</button>
         <button onClick={() => setFilter("pending")}>Pending</button>
         <button onClick={() => setFilter("done")}>Done</button>
       </div>
 
-      {/* Tasks */}
+      {message && <p>{message}</p>}
+
       <div className="space-y-2">
-        {visibleTasks.map((task) => (
+        <h3>Pending Tasks</h3>
+
+        {pendingTasks.length === 0 && <p>No pending tasks in this view.</p>}
+
+        {pendingTasks.map((task) => (
           <div key={task.id} className="border p-2 space-y-1">
             <p>{task.title}</p>
-            <p>{task.category}</p>
+            <p>{task.category || "Other"}</p>
 
+            {task.assigned_to_label && <p>Assigned to: {task.assigned_to_label}</p>}
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
             {task.deadline_revision_count > 0 && (
@@ -306,14 +352,34 @@ export function TasksCard() {
                   value={newDeadline}
                   onChange={(e) => setNewDeadline(e.target.value)}
                 />
-                <button onClick={() => saveNewDeadline(task)}>Save</button>
+                <button onClick={() => void saveNewDeadline(task)}>Save</button>
               </>
             ) : (
               <button onClick={() => startEdit(task)}>Edit Deadline</button>
             )}
 
-            {task.status !== "done" && (
-              <button onClick={() => markDone(task.id)}>Done</button>
+            <button onClick={() => void markDone(task.id)}>Done</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        <h3>Completed Tasks</h3>
+
+        {completedTasks.length === 0 && <p>No completed tasks in this view.</p>}
+
+        {completedTasks.map((task) => (
+          <div key={task.id} className="border p-2 space-y-1">
+            <p>{task.title}</p>
+            <p>{task.category || "Other"}</p>
+
+            {task.assigned_to_label && <p>Assigned to: {task.assigned_to_label}</p>}
+            {task.current_deadline && <p>Due: {task.current_deadline}</p>}
+
+            <p>{getCompletionLabel(task)}</p>
+
+            {task.deadline_revision_count > 0 && (
+              <p>Revised {task.deadline_revision_count} times</p>
             )}
           </div>
         ))}
