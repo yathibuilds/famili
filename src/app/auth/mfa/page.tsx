@@ -10,6 +10,98 @@ type Factor = {
   status: string;
 };
 
+const styles = {
+  shell: {
+    minHeight: "100vh",
+    background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)",
+    padding: "24px",
+    color: "#0f172a",
+  } as React.CSSProperties,
+  wrap: {
+    maxWidth: "520px",
+    margin: "0 auto",
+    display: "grid",
+    gap: "16px",
+  } as React.CSSProperties,
+  hero: {
+    borderRadius: "22px",
+    padding: "22px",
+    background: "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)",
+    color: "#ffffff",
+  } as React.CSSProperties,
+  heroTitle: {
+    margin: 0,
+    fontSize: "28px",
+    fontWeight: 700,
+  } as React.CSSProperties,
+  heroText: {
+    margin: "8px 0 0 0",
+    color: "#dbeafe",
+    fontSize: "14px",
+    lineHeight: 1.5,
+  } as React.CSSProperties,
+  card: {
+    border: "1px solid #e5e7eb",
+    borderRadius: "20px",
+    background: "#ffffff",
+    padding: "20px",
+    boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+  } as React.CSSProperties,
+  label: {
+    display: "block",
+    marginBottom: "6px",
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#334155",
+  } as React.CSSProperties,
+  input: {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: "10px",
+    border: "1px solid #cbd5e1",
+    fontSize: "14px",
+    color: "#0f172a",
+    background: "#ffffff",
+    boxSizing: "border-box",
+  } as React.CSSProperties,
+  primaryButton: {
+    width: "100%",
+    background: "#0f172a",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "11px 14px",
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  secondaryButton: {
+    width: "100%",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
+    borderRadius: "10px",
+    padding: "11px 14px",
+    fontSize: "14px",
+    fontWeight: 600,
+    cursor: "pointer",
+  } as React.CSSProperties,
+  note: {
+    margin: 0,
+    fontSize: "13px",
+    color: "#64748b",
+    lineHeight: 1.5,
+  } as React.CSSProperties,
+  message: {
+    border: "1px solid #e5e7eb",
+    borderRadius: "14px",
+    background: "#f8fafc",
+    padding: "12px 14px",
+    color: "#334155",
+    fontSize: "14px",
+  } as React.CSSProperties,
+};
+
 export default function MfaPage() {
   const router = useRouter();
   const [factors, setFactors] = useState<Factor[]>([]);
@@ -34,7 +126,7 @@ export default function MfaPage() {
       if (verified.length === 0) setMessage("No verified authenticator app found for this account.");
     }
 
-    loadFactors();
+    void loadFactors();
   }, []);
 
   async function createChallenge() {
@@ -53,7 +145,7 @@ export default function MfaPage() {
     }
 
     setChallengeId(data.id);
-    setMessage("Enter the code from your authenticator app.");
+    setMessage("Enter the current code from your authenticator app.");
   }
 
   async function verifyCode() {
@@ -79,52 +171,77 @@ export default function MfaPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white p-6 md:p-10">
-      <div className="mx-auto max-w-md rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Two-factor verification</h1>
-          <p className="mt-2 text-sm text-neutral-400">Complete sign-in with your authenticator app.</p>
+    <main style={styles.shell}>
+      <div style={styles.wrap}>
+        <div style={styles.hero}>
+          <h1 style={styles.heroTitle}>Two-factor verification</h1>
+          <p style={styles.heroText}>
+            Complete sign-in with your authenticator app so your Famli workspace stays protected.
+          </p>
         </div>
 
-        {factors.length > 0 && (
-          <select
-            value={selectedFactorId}
-            onChange={(e) => setSelectedFactorId(e.target.value)}
-            className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2"
-          >
-            {factors.map((factor) => (
-              <option key={factor.id} value={factor.id}>
-                {factor.friendly_name || "Authenticator app"}
-              </option>
-            ))}
-          </select>
-        )}
+        <div style={styles.card}>
+          <div style={{ display: "grid", gap: "14px" }}>
+            {factors.length > 0 && (
+              <div>
+                <label style={styles.label}>Authenticator app</label>
+                <select
+                  value={selectedFactorId}
+                  onChange={(e) => setSelectedFactorId(e.target.value)}
+                  style={styles.input}
+                >
+                  {factors.map((factor) => (
+                    <option key={factor.id} value={factor.id}>
+                      {factor.friendly_name || "Authenticator app"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-        <button
-          onClick={createChallenge}
-          disabled={loading || !selectedFactorId}
-          className="w-full rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-60"
-        >
-          {loading ? "Preparing..." : "Get code challenge"}
-        </button>
+            <p style={styles.note}>
+              First request a code challenge, then enter the 6-digit code shown in your authenticator app.
+            </p>
 
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Enter 6-digit code"
-          inputMode="numeric"
-          className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2"
-        />
+            <button
+              onClick={createChallenge}
+              disabled={loading || !selectedFactorId}
+              style={{
+                ...styles.secondaryButton,
+                opacity: loading || !selectedFactorId ? 0.6 : 1,
+                cursor: loading || !selectedFactorId ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Preparing..." : "Get code challenge"}
+            </button>
 
-        <button
-          onClick={verifyCode}
-          disabled={loading || !challengeId || code.trim().length < 6}
-          className="w-full rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-60"
-        >
-          {loading ? "Verifying..." : "Verify"}
-        </button>
+            <div>
+              <label style={styles.label}>Verification code</label>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+                inputMode="numeric"
+                style={styles.input}
+              />
+            </div>
 
-        {message && <p className="text-sm text-neutral-300">{message}</p>}
+            <button
+              onClick={verifyCode}
+              disabled={loading || !challengeId || code.trim().length < 6}
+              style={{
+                ...styles.primaryButton,
+                opacity: loading || !challengeId || code.trim().length < 6 ? 0.6 : 1,
+                cursor:
+                  loading || !challengeId || code.trim().length < 6 ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Verifying..." : "Verify and continue"}
+            </button>
+          </div>
+        </div>
+
+        {message && <div style={styles.message}>{message}</div>}
       </div>
     </main>
   );
