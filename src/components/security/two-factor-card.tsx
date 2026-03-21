@@ -44,7 +44,7 @@ export function TwoFactorCard() {
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: "Famli Authenticator",
+      friendlyName: "FamiliHub Authenticator",
     });
 
     setLoading(false);
@@ -107,14 +107,14 @@ export function TwoFactorCard() {
     await loadFactors();
   }
 
-  function startRemove(nextFactorId: string) {
+  function startDisable(nextFactorId: string) {
     setRemoveFactorId(nextFactorId);
     setShowRemoveVerify(true);
     setRemoveCode("");
-    setMessage("Enter a current authenticator code to confirm removal.");
+    setMessage("Enter a current authenticator code to confirm disabling 2FA.");
   }
 
-  async function confirmRemove() {
+  async function confirmDisable() {
     if (!removeFactorId) return;
 
     setLoading(true);
@@ -159,7 +159,7 @@ export function TwoFactorCard() {
       return;
     }
 
-    setMessage("2FA removed successfully.");
+    setMessage("2FA disabled successfully.");
     setShowRemoveVerify(false);
     setRemoveCode("");
     setRemoveFactorId(null);
@@ -171,10 +171,13 @@ export function TwoFactorCard() {
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Two-factor authentication</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+              Two-factor authentication
+            </p>
             <h2 className="mt-2 text-xl font-semibold">Authenticator app protection</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
-              Use an authenticator app to secure sign-in and future sensitive actions inside Famli.
+              Use an authenticator app to secure sign-in and future sensitive actions inside
+              FamiliHub.
             </p>
           </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm text-neutral-300">
@@ -185,10 +188,7 @@ export function TwoFactorCard() {
         {factors.length > 0 ? (
           <div className="space-y-4">
             {factors.map((factor) => (
-              <div
-                key={factor.id}
-                className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4"
-              >
+              <div key={factor.id} className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-sm font-medium text-white">{factor.friendly_name || "Authenticator app"}</p>
@@ -197,10 +197,10 @@ export function TwoFactorCard() {
 
                   {!showRemoveVerify ? (
                     <button
-                      onClick={() => startRemove(factor.id)}
+                      onClick={() => startDisable(factor.id)}
                       className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
                     >
-                      Remove authenticator
+                      Disable 2FA
                     </button>
                   ) : null}
                 </div>
@@ -218,11 +218,11 @@ export function TwoFactorCard() {
                     className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
                   />
                   <button
-                    onClick={confirmRemove}
+                    onClick={confirmDisable}
                     disabled={loading || removeCode.length < 6}
                     className="rounded-2xl bg-red-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {loading ? "Removing..." : "Confirm removal"}
+                    {loading ? "Disabling..." : "Confirm disable"}
                   </button>
                 </div>
               </div>
