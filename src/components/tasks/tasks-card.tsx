@@ -41,6 +41,7 @@ export function TasksCard() {
   const [newDeadline, setNewDeadline] = useState("");
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     void loadTasks();
@@ -70,13 +71,7 @@ export function TasksCard() {
 
     const {
       data: { user },
-      error: userError,
     } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setMessage("Could not find signed-in user.");
-      return;
-    }
 
     const { error } = await supabase.from("tasks").insert({
       title,
@@ -84,7 +79,7 @@ export function TasksCard() {
       original_deadline: deadline || null,
       current_deadline: deadline || null,
       category,
-      created_by: user.id,
+      created_by: user?.id,
     });
 
     if (error) {
@@ -96,14 +91,11 @@ export function TasksCard() {
     setAssignee("");
     setDeadline("");
     setCategory("Other");
-    setMessage("Task added.");
 
     await loadTasks();
   }
 
   async function markDone(id: string) {
-    setMessage("");
-
     const { error } = await supabase
       .from("tasks")
       .update({
@@ -117,23 +109,16 @@ export function TasksCard() {
       return;
     }
 
-    setMessage("Task marked done.");
     await loadTasks();
   }
 
   function startEdit(task: Task) {
     setEditingTaskId(task.id);
     setNewDeadline(task.current_deadline || "");
-    setMessage("");
   }
 
   async function saveNewDeadline(task: Task) {
-    if (!newDeadline) {
-      setMessage("Please choose a new deadline.");
-      return;
-    }
-
-    setMessage("");
+    if (!newDeadline) return;
 
     const updatedCount = (task.deadline_revision_count || 0) + 1;
 
@@ -152,80 +137,22 @@ export function TasksCard() {
 
     setEditingTaskId(null);
     setNewDeadline("");
-    setMessage("Deadline updated.");
-
     await loadTasks();
   }
 
   function getTodayString() {
     const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return today.toISOString().split("T")[0];
   }
 
   function getTaskTiming(task: Task) {
-    if (!task.current_deadline || task.status === "done") {
-      return "none";
-    }
+    if (!task.current_deadline || task.status === "done") return "none";
 
     const today = getTodayString();
 
-    if (task.current_deadline < today) {
-      return "overdue";
-    }
-
-    if (task.current_deadline === today) {
-      return "today";
-    }
-
+    if (task.current_deadline < today) return "overdue";
+    if (task.current_deadline === today) return "today";
     return "upcoming";
-  }
-
-  function getTaskCardStyle(task: Task) {
-    const timing = getTaskTiming(task);
-
-    if (task.status === "done") {
-      return {
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(255,255,255,0.04)",
-        borderRadius: "16px",
-      };
-    }
-
-    if (timing === "overdue") {
-      return {
-        border: "1px solid rgba(255, 99, 132, 0.8)",
-        background: "rgba(255, 99, 132, 0.08)",
-        borderRadius: "16px",
-      };
-    }
-
-    if (timing === "today") {
-      return {
-        border: "1px solid rgba(255, 205, 86, 0.8)",
-        background: "rgba(255, 205, 86, 0.08)",
-        borderRadius: "16px",
-      };
-    }
-
-    return {
-      border: "1px solid rgba(255,255,255,0.12)",
-      background: "rgba(255,255,255,0.03)",
-      borderRadius: "16px",
-    };
-  }
-
-  function getTaskTimingLabel(task: Task) {
-    const timing = getTaskTiming(task);
-
-    if (task.status === "done") return "Completed";
-    if (timing === "overdue") return "Overdue";
-    if (timing === "today") return "Due today";
-    if (timing === "upcoming") return "Upcoming";
-
-    return "";
   }
 
   function getSortRank(task: Task) {
@@ -246,98 +173,84 @@ export function TasksCard() {
 
     for (const task of tasks) {
       if (task.status === "done") {
-        done += 1;
+        done++;
         continue;
       }
 
-      pending += 1;
+      pending++;
 
       const timing = getTaskTiming(task);
-      if (timing === "overdue") overdue += 1;
-      if (timing === "today") dueToday += 1;
+      if (timing === "overdue") overdue++;
+      if (timing === "today") dueToday++;
     }
 
     return { overdue, dueToday, pending, done };
   }, [tasks]);
 
+  const categorySummary = useMemo(() => {
+    const map: Record<string, number> = {};
+
+    for (const task of tasks) {
+      const cat = task.category || "Other";
+      map[cat] = (map[cat] || 0) + 1;
+    }
+
+    return map;
+  }, [tasks]);
+
   const visibleTasks = useMemo(() => {
-    const filtered = tasks.filter((task) => {
-      if (filter === "pending") return task.status !== "done";
-      if (filter === "done") return task.status === "done";
-      return true;
-    });
+    let filtered = tasks;
+
+    if (filter === "pending") {
+      filtered = filtered.filter((t) => t.status !== "done");
+    } else if (filter === "done") {
+      filtered = filtered.filter((t) => t.status === "done");
+    }
+
+    if (selectedCategory) {
+      filtered = filtered.filter(
+        (t) => (t.category || "Other") === selectedCategory
+      );
+    }
 
     return filtered.sort((a, b) => {
-      const rankDifference = getSortRank(a) - getSortRank(b);
-      if (rankDifference !== 0) return rankDifference;
+      const rank = getSortRank(a) - getSortRank(b);
+      if (rank !== 0) return rank;
 
       const aDeadline = a.current_deadline || "9999-12-31";
       const bDeadline = b.current_deadline || "9999-12-31";
 
       return aDeadline.localeCompare(bDeadline);
     });
-  }, [tasks, filter]);
+  }, [tasks, filter, selectedCategory]);
 
   return (
     <div className="space-y-4" id="tasks">
       <h2>Tasks</h2>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: "12px",
-        }}
-      >
-        <div
-          style={{
-            border: "1px solid rgba(255, 99, 132, 0.5)",
-            background: "rgba(255, 99, 132, 0.08)",
-            borderRadius: "16px",
-            padding: "16px",
-          }}
-        >
-          <p>Overdue</p>
-          <h3>{summary.overdue}</h3>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255, 205, 86, 0.5)",
-            background: "rgba(255, 205, 86, 0.08)",
-            borderRadius: "16px",
-            padding: "16px",
-          }}
-        >
-          <p>Due today</p>
-          <h3>{summary.dueToday}</h3>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.04)",
-            borderRadius: "16px",
-            padding: "16px",
-          }}
-        >
-          <p>Pending</p>
-          <h3>{summary.pending}</h3>
-        </div>
-
-        <div
-          style={{
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.04)",
-            borderRadius: "16px",
-            padding: "16px",
-          }}
-        >
-          <p>Done</p>
-          <h3>{summary.done}</h3>
-        </div>
+      {/* Summary */}
+      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div>Overdue: {summary.overdue}</div>
+        <div>Today: {summary.dueToday}</div>
+        <div>Pending: {summary.pending}</div>
+        <div>Done: {summary.done}</div>
       </div>
 
+      {/* Category Filter */}
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <button onClick={() => setSelectedCategory(null)}>All Categories</button>
+
+        {Object.entries(categorySummary).map(([cat, count]) => (
+          <button
+            key={cat}
+            onClick={() => setSelectedCategory(cat)}
+          >
+            {cat} ({count})
+          </button>
+        ))}
+      </div>
+
+      {/* Create */}
       <div className="space-y-2">
         <input
           placeholder="Task title"
@@ -346,16 +259,14 @@ export function TasksCard() {
         />
 
         <input
-          placeholder="Assign to (optional)"
+          placeholder="Assign to"
           value={assignee}
           onChange={(e) => setAssignee(e.target.value)}
         />
 
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
+            <option key={c}>{c}</option>
           ))}
         </select>
 
@@ -368,30 +279,19 @@ export function TasksCard() {
         <button onClick={addTask}>Add Task</button>
       </div>
 
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      {/* Status filter */}
+      <div style={{ display: "flex", gap: "8px" }}>
         <button onClick={() => setFilter("all")}>All</button>
         <button onClick={() => setFilter("pending")}>Pending</button>
         <button onClick={() => setFilter("done")}>Done</button>
       </div>
 
-      {message && <p>{message}</p>}
-
+      {/* Tasks */}
       <div className="space-y-2">
         {visibleTasks.map((task) => (
-          <div
-            key={task.id}
-            className="p-3 space-y-1"
-            style={getTaskCardStyle(task)}
-          >
+          <div key={task.id} className="border p-2 space-y-1">
             <p>{task.title}</p>
-
-            {getTaskTimingLabel(task) && <p>{getTaskTimingLabel(task)}</p>}
-
-            {task.category && <p>Category: {task.category}</p>}
-
-            {task.assigned_to_label && (
-              <p>Assigned to: {task.assigned_to_label}</p>
-            )}
+            <p>{task.category}</p>
 
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
@@ -400,25 +300,23 @@ export function TasksCard() {
             )}
 
             {editingTaskId === task.id ? (
-              <div className="space-y-1">
+              <>
                 <input
                   type="date"
                   value={newDeadline}
                   onChange={(e) => setNewDeadline(e.target.value)}
                 />
-                <button onClick={() => void saveNewDeadline(task)}>Save</button>
-              </div>
-            ) : task.status !== "done" ? (
+                <button onClick={() => saveNewDeadline(task)}>Save</button>
+              </>
+            ) : (
               <button onClick={() => startEdit(task)}>Edit Deadline</button>
-            ) : null}
+            )}
 
             {task.status !== "done" && (
-              <button onClick={() => void markDone(task.id)}>Mark Done</button>
+              <button onClick={() => markDone(task.id)}>Done</button>
             )}
           </div>
         ))}
-
-        {visibleTasks.length === 0 && <p>No tasks in this view yet.</p>}
       </div>
     </div>
   );
