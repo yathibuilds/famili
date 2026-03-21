@@ -47,10 +47,6 @@ export function TasksCard() {
   const [selectedMemberId, setSelectedMemberId] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [newDeadline, setNewDeadline] = useState("");
-  const [editingAssignmentTaskId, setEditingAssignmentTaskId] = useState<string | null>(null);
-  const [editingAssignedMemberId, setEditingAssignedMemberId] = useState("");
-  const [editingCategoryTaskId, setEditingCategoryTaskId] = useState<string | null>(null);
-  const [editingCategoryValue, setEditingCategoryValue] = useState("Other");
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -84,7 +80,6 @@ export function TasksCard() {
 
   async function loadMembers() {
     const familyId = await getFamilyId();
-
     if (!familyId) {
       setMembers([]);
       return;
@@ -209,55 +204,6 @@ export function TasksCard() {
     setEditingTaskId(null);
     setNewDeadline("");
     setMessage("Deadline updated.");
-    await loadTasks();
-  }
-
-  function startAssignmentEdit(task: Task) {
-    setEditingAssignmentTaskId(task.id);
-    setEditingAssignedMemberId(task.assigned_to_member_id || "");
-  }
-
-  async function saveAssignment(taskId: string) {
-    const { error } = await supabase
-      .from("tasks")
-      .update({
-        assigned_to_member_id: editingAssignedMemberId || null,
-        assigned_to_label: null,
-      })
-      .eq("id", taskId);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setEditingAssignmentTaskId(null);
-    setEditingAssignedMemberId("");
-    setMessage("Assignment updated.");
-    await loadTasks();
-  }
-
-  function startCategoryEdit(task: Task) {
-    setEditingCategoryTaskId(task.id);
-    setEditingCategoryValue(task.category || "Other");
-  }
-
-  async function saveCategory(taskId: string) {
-    const { error } = await supabase
-      .from("tasks")
-      .update({
-        category: editingCategoryValue || "Other",
-      })
-      .eq("id", taskId);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setEditingCategoryTaskId(null);
-    setEditingCategoryValue("Other");
-    setMessage("Category updated.");
     await loadTasks();
   }
 
@@ -419,13 +365,13 @@ export function TasksCard() {
       </div>
 
       <div className="space-y-2">
-        <input placeholder="Task title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input
+          placeholder="Task title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
-        <select
-          value={selectedMemberId}
-          onChange={(e) => setSelectedMemberId(e.target.value)}
-          style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "6px" }}
-        >
+        <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
           <option value="">Assign to member (optional)</option>
           {members.map((member) => (
             <option key={member.id} value={member.id}>
@@ -433,12 +379,6 @@ export function TasksCard() {
             </option>
           ))}
         </select>
-
-        {selectedMemberId && (
-          <p style={{ fontSize: "14px" }}>
-            Assigned to: {members.find((m) => m.id === selectedMemberId)?.name}
-          </p>
-        )}
 
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           {categories.map((c) => (
@@ -448,7 +388,11 @@ export function TasksCard() {
           ))}
         </select>
 
-        <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+        <input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+        />
 
         <button onClick={() => void addTask()}>Add Task</button>
       </div>
@@ -467,57 +411,25 @@ export function TasksCard() {
         {pendingTasks.length === 0 && <p>No pending tasks in this view.</p>}
 
         {pendingTasks.map((task) => (
-          <div key={task.id} className="border p-2 space-y-2">
+          <div key={task.id} className="border p-2 space-y-1">
             <p>{task.title}</p>
-
-            {editingCategoryTaskId === task.id ? (
-              <>
-                <select value={editingCategoryValue} onChange={(e) => setEditingCategoryValue(e.target.value)}>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => void saveCategory(task.id)}>Save Category</button>
-              </>
-            ) : (
-              <>
-                <p>{task.category || "Other"}</p>
-                <button onClick={() => startCategoryEdit(task)}>Edit Category</button>
-              </>
-            )}
-
-            {editingAssignmentTaskId === task.id ? (
-              <>
-                <select
-                  value={editingAssignedMemberId}
-                  onChange={(e) => setEditingAssignedMemberId(e.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
-                <button onClick={() => void saveAssignment(task.id)}>Save Assignment</button>
-              </>
-            ) : (
-              <>
-                <p>Assigned to: {getAssignedName(task)}</p>
-                <button onClick={() => startAssignmentEdit(task)}>Edit Assignment</button>
-              </>
-            )}
+            <p>{task.category || "Other"}</p>
+            <p>Assigned to: {getAssignedName(task)}</p>
 
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
-            {task.deadline_revision_count > 0 && <p>Revised {task.deadline_revision_count} times</p>}
+            {task.deadline_revision_count > 0 && (
+              <p>Revised {task.deadline_revision_count} times</p>
+            )}
 
             {editingTaskId === task.id ? (
               <>
-                <input type="date" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)} />
-                <button onClick={() => void saveNewDeadline(task)}>Save Deadline</button>
+                <input
+                  type="date"
+                  value={newDeadline}
+                  onChange={(e) => setNewDeadline(e.target.value)}
+                />
+                <button onClick={() => void saveNewDeadline(task)}>Save</button>
               </>
             ) : (
               <button onClick={() => startEdit(task)}>Edit Deadline</button>
@@ -543,7 +455,9 @@ export function TasksCard() {
 
             <p>{getCompletionLabel(task)}</p>
 
-            {task.deadline_revision_count > 0 && <p>Revised {task.deadline_revision_count} times</p>}
+            {task.deadline_revision_count > 0 && (
+              <p>Revised {task.deadline_revision_count} times</p>
+            )}
           </div>
         ))}
       </div>
