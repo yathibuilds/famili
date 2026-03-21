@@ -87,10 +87,12 @@ export default function MfaPage() {
     <main className="min-h-screen bg-neutral-950 px-6 py-8 text-white md:px-10">
       <div className="mx-auto grid max-w-lg gap-6">
         <div className="rounded-3xl border border-neutral-800 bg-gradient-to-br from-cyan-500/15 via-neutral-900 to-neutral-900 p-6 shadow-2xl shadow-black/20">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Two-factor sign-in</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
+            Two-factor sign-in
+          </p>
           <h1 className="mt-3 text-2xl font-semibold">Verify your identity</h1>
           <p className="mt-2 text-sm leading-6 text-neutral-300">
-            Complete sign-in with your authenticator app before entering your Famli workspace.
+            Complete sign-in with your authenticator app before entering your FamiliHub workspace.
           </p>
         </div>
 
