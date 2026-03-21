@@ -45,6 +45,7 @@ export function TasksPanel() {
   const [deadline, setDeadline] = useState("");
   const [category, setCategory] = useState("Other");
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [memberName, setMemberName] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -53,8 +54,30 @@ export function TasksPanel() {
     void loadMembers();
   }, []);
 
+  async function getFamilyId() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data } = await supabase
+      .from("families")
+      .select("id")
+      .eq("created_by", user?.id)
+      .maybeSingle();
+
+    return data?.id;
+  }
+
   async function loadMembers() {
-    const { data } = await supabase.from("family_members").select("id,name");
+    const familyId = await getFamilyId();
+    if (!familyId) return;
+
+    const { data } = await supabase
+      .from("family_members")
+      .select("id,name")
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: true });
+
     setMembers(data || []);
   }
 
@@ -79,6 +102,21 @@ export function TasksPanel() {
     setSelectedMemberId("");
     setCategory("Other");
     await loadTasks();
+  }
+
+  async function addMember() {
+    if (!memberName.trim()) return;
+
+    const familyId = await getFamilyId();
+    if (!familyId) return;
+
+    await supabase.from("family_members").insert({
+      name: memberName,
+      family_id: familyId,
+    });
+
+    setMemberName("");
+    await loadMembers();
   }
 
   function getAssignedName(task: Task) {
@@ -174,27 +212,27 @@ export function TasksPanel() {
     <section id="tasks" className="space-y-6">
       <div className="rounded-3xl border border-neutral-800 bg-gradient-to-br from-cyan-500/15 via-neutral-900 to-neutral-900 p-6 shadow-2xl shadow-black/20">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Tasks</p>
-        <h2 className="mt-3 text-2xl font-semibold">Household task management</h2>
+        <h2 className="mt-3 text-2xl font-semibold">House task management</h2>
         <p className="mt-2 text-sm leading-6 text-neutral-300">
-          Keep deadlines, ownership, and status easy to scan without breaking the calm Famli layout.
+          Keep deadlines, ownership, and status easy to scan without clutter.
         </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Overdue", summary.overdue, "text-red-200 bg-red-500/10 border-red-500/20"],
+            ["Due today", summary.dueToday, "text-amber-200 bg-amber-500/10 border-amber-500/20"],
+            ["Pending", summary.pending, "text-cyan-200 bg-cyan-500/10 border-cyan-500/20"],
+            ["Done", summary.done, "text-emerald-200 bg-emerald-500/10 border-emerald-500/20"],
+          ].map(([label, value, className]) => (
+            <div key={String(label)} className={`rounded-3xl border p-5 ${className}`}>
+              <p className="text-sm">{label}</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["Overdue", summary.overdue, "text-red-200 bg-red-500/10 border-red-500/20"],
-          ["Due today", summary.dueToday, "text-amber-200 bg-amber-500/10 border-amber-500/20"],
-          ["Pending", summary.pending, "text-cyan-200 bg-cyan-500/10 border-cyan-500/20"],
-          ["Done", summary.done, "text-emerald-200 bg-emerald-500/10 border-emerald-500/20"],
-        ].map(([label, value, className]) => (
-          <div key={String(label)} className={`rounded-3xl border p-5 ${className}`}>
-            <p className="text-sm">{label}</p>
-            <p className="mt-3 text-3xl font-semibold text-white">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-2">
         <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
           <h3 className="text-lg font-semibold text-white">Add task</h3>
           <p className="mt-2 text-sm leading-6 text-neutral-400">
@@ -202,7 +240,7 @@ export function TasksPanel() {
           </p>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2 space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium text-neutral-200">Task title</label>
               <input
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
@@ -269,67 +307,86 @@ export function TasksPanel() {
         </section>
 
         <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
-          <h3 className="text-lg font-semibold text-white">Browse tasks</h3>
+          <h3 className="text-lg font-semibold text-white">Add member</h3>
           <p className="mt-2 text-sm leading-6 text-neutral-400">
-            Filter the board without changing underlying task logic.
+            Add family members here so they can immediately be assigned to tasks.
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {(["all", "pending", "done"] as FilterType[]).map((item) => {
-              const active = filter === item;
-              return (
-                <button
-                  key={item}
-                  onClick={() => setFilter(item)}
-                  className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "border-cyan-400 bg-cyan-400 text-neutral-950"
-                      : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
-                  }`}
-                >
-                  {item === "all" ? "All" : item === "pending" ? "Pending" : "Done"}
-                </button>
-              );
-            })}
-          </div>
+          <div className="mt-5 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-200">Member name</label>
+              <input
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
+                placeholder="Enter family member name"
+                value={memberName}
+                onChange={(event) => setMemberName(event.target.value)}
+              />
+            </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
             <button
-              onClick={() => setSelectedCategory(null)}
-              className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
-                selectedCategory === null
-                  ? "border-cyan-400 bg-cyan-400 text-neutral-950"
-                  : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
-              }`}
+              className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300"
+              onClick={() => void addMember()}
             >
-              All Categories
+              Add Member
             </button>
-
-            {Object.entries(categorySummary).map(([item, count]) => {
-              const active = selectedCategory === item;
-              return (
-                <button
-                  key={item}
-                  onClick={() => setSelectedCategory(item)}
-                  className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
-                    active
-                      ? "border-cyan-400 bg-cyan-400 text-neutral-950"
-                      : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
-                  }`}
-                >
-                  {item} ({count})
-                </button>
-              );
-            })}
           </div>
         </section>
       </div>
 
       <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
-        <h3 className="text-lg font-semibold text-white">Task list</h3>
+        <h3 className="text-lg font-semibold text-white">Task Board</h3>
         <p className="mt-2 text-sm leading-6 text-neutral-400">
-          Unified cards for pending and completed work.
+          Filter and scan all tasks from one combined view.
         </p>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {(["all", "pending", "done"] as FilterType[]).map((item) => {
+            const active = filter === item;
+            return (
+              <button
+                key={item}
+                onClick={() => setFilter(item)}
+                className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? "border-cyan-400 bg-cyan-400 text-neutral-950"
+                    : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
+                }`}
+              >
+                {item === "all" ? "All" : item === "pending" ? "Pending" : "Done"}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+              selectedCategory === null
+                ? "border-cyan-400 bg-cyan-400 text-neutral-950"
+                : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
+            }`}
+          >
+            All Categories
+          </button>
+
+          {Object.entries(categorySummary).map(([item, count]) => {
+            const active = selectedCategory === item;
+            return (
+              <button
+                key={item}
+                onClick={() => setSelectedCategory(item)}
+                className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+                  active
+                    ? "border-cyan-400 bg-cyan-400 text-neutral-950"
+                    : "border-neutral-700 bg-neutral-950 text-white hover:bg-neutral-800"
+                }`}
+              >
+                {item} ({count})
+              </button>
+            );
+          })}
+        </div>
 
         <div className="mt-5 grid gap-4">
           {visibleTasks.length === 0 ? (
