@@ -372,6 +372,7 @@ export function TasksCard() {
         />
 
         <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
+          <p style={{ color: "red" }}>Members loaded: {members.length}</p>
           <option value="">Assign to member (optional)</option>
           {members.map((member) => (
             <option key={member.id} value={member.id}>
