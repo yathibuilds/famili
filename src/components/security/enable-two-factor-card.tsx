@@ -7,38 +7,34 @@ type Factor = {
   id: string;
   status: string;
   friendly_name?: string;
-  factor_type?: string;
 };
 
 export function EnableTwoFactorCard() {
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [factors, setFactors] = useState<Factor[]>([]);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  const [verifiedFactors, setVerifiedFactors] = useState<Factor[]>([]);
-  const [setupComplete, setSetupComplete] = useState(false);
-
-  async function loadFactors() {
-    const { data, error } = await supabase.auth.mfa.listFactors();
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    const verified = (data?.totp ?? []).filter((factor) => factor.status === "verified");
-    setVerifiedFactors(verified);
-  }
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showRemoveVerify, setShowRemoveVerify] = useState(false);
+  const [removeCode, setRemoveCode] = useState("");
+  const [removeFactorId, setRemoveFactorId] = useState<string | null>(null);
 
   useEffect(() => {
     loadFactors();
   }, []);
 
+  async function loadFactors() {
+    const { data } = await supabase.auth.mfa.listFactors();
+    const verified =
+      data?.totp?.filter((f) => f.status === "verified") ?? [];
+    setFactors(verified);
+  }
+
   async function handleEnroll() {
     setLoading(true);
-    setMessage(null);
-    setSetupComplete(false);
+    setMessage("");
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
@@ -58,49 +54,19 @@ export function EnableTwoFactorCard() {
   }
 
   async function handleVerify() {
-    if (!factorId || code.trim().length < 6) return;
+    if (!factorId) return;
 
     setLoading(true);
-    setMessage(null);
 
-    const { data: challengeData, error: challengeError } = await supabase.auth.mfa.challenge({
+    const { data: challengeData } = await supabase.auth.mfa.challenge({
       factorId,
     });
 
-    if (challengeError) {
-      setLoading(false);
-      setMessage(challengeError.message);
-      return;
-    }
-
-    const { error: verifyError } = await supabase.auth.mfa.verify({
+    const { error } = await supabase.auth.mfa.verify({
       factorId,
       challengeId: challengeData.id,
-      code: code.trim(),
+      code,
     });
-
-    setLoading(false);
-
-    if (verifyError) {
-      setMessage(verifyError.message);
-      return;
-    }
-
-    setMessage("Two-factor authentication is now enabled.");
-    setSetupComplete(true);
-    setCode("");
-    setFactorId(null);
-    setQrCode(null);
-    setSecret(null);
-    await loadFactors();
-  }
-
-  async function handleUnenroll(id: string) {
-    setLoading(true);
-    setMessage(null);
-    setSetupComplete(false);
-
-    const { error } = await supabase.auth.mfa.unenroll({ factorId: id });
 
     setLoading(false);
 
@@ -109,125 +75,120 @@ export function EnableTwoFactorCard() {
       return;
     }
 
-    setMessage("Two-factor authentication factor removed.");
-    await loadFactors();
+    setMessage("Two-factor authentication is now enabled.");
+    setQrCode(null);
+    setSecret(null);
+    setCode("");
+    loadFactors();
   }
 
-  const showContinueActions = setupComplete || verifiedFactors.length > 0;
+  async function startRemove(factorId: string) {
+    setRemoveFactorId(factorId);
+    setShowRemoveVerify(true);
+    setMessage("Enter code to confirm removal");
+  }
+
+  async function confirmRemove() {
+    if (!removeFactorId) return;
+
+    setLoading(true);
+
+    const { data: challengeData } = await supabase.auth.mfa.challenge({
+      factorId: removeFactorId,
+    });
+
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId: removeFactorId,
+      challengeId: challengeData.id,
+      code: removeCode,
+    });
+
+    if (verifyError) {
+      setLoading(false);
+      setMessage(verifyError.message);
+      return;
+    }
+
+    const { error: removeError } = await supabase.auth.mfa.unenroll({
+      factorId: removeFactorId,
+    });
+
+    setLoading(false);
+
+    if (removeError) {
+      setMessage(removeError.message);
+      return;
+    }
+
+    setMessage("2FA removed successfully");
+    setShowRemoveVerify(false);
+    setRemoveCode("");
+    loadFactors();
+  }
 
   return (
-    <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-5">
-      <div>
-        <h2 className="text-lg font-semibold">Authenticator app</h2>
-        <p className="mt-1 text-sm text-neutral-400">
-          Use Google Authenticator, Microsoft Authenticator, 1Password, or any TOTP app.
-        </p>
-      </div>
+    <div className="space-y-4">
+      {factors.length > 0 && (
+        <div>
+          <p>2FA is enabled on this account.</p>
 
-      {verifiedFactors.length > 0 && (
-        <div className="rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 space-y-3">
-          <p className="text-sm text-emerald-300">2FA is enabled on this account.</p>
-          {verifiedFactors.map((factor) => (
-            <div key={factor.id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
-              <div>
-                <p className="font-medium">{factor.friendly_name || "Authenticator app"}</p>
-                <p className="text-xs text-neutral-400">Status: {factor.status}</p>
-              </div>
-              <button
-                onClick={() => handleUnenroll(factor.id)}
-                disabled={loading}
-                className="rounded-lg border border-neutral-700 px-3 py-2 text-sm hover:bg-neutral-800"
-              >
-                Remove
-              </button>
+          {factors.map((f) => (
+            <div key={f.id} className="space-y-2">
+              <p>{f.friendly_name}</p>
+              <p>Status: {f.status}</p>
+
+              {!showRemoveVerify && (
+                <button onClick={() => startRemove(f.id)}>Remove</button>
+              )}
             </div>
           ))}
+
+          {showRemoveVerify && (
+            <div className="space-y-2">
+              <input
+                value={removeCode}
+                onChange={(e) => setRemoveCode(e.target.value)}
+                placeholder="Enter 6-digit code"
+              />
+              <button onClick={confirmRemove} disabled={loading}>
+                Confirm removal
+              </button>
+            </div>
+          )}
+
+          <button onClick={handleEnroll}>Add another authenticator</button>
+
+          <div className="flex gap-2 mt-4">
+            <a href="/">Go to dashboard</a>
+            <a href="/settings/security">Stay on security page</a>
+          </div>
         </div>
       )}
 
-      {!qrCode && (
-        <button
-          onClick={handleEnroll}
-          disabled={loading}
-          className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-60"
-        >
-          {loading ? "Preparing..." : verifiedFactors.length > 0 ? "Add another authenticator" : "Enable 2FA"}
+      {factors.length === 0 && !qrCode && (
+        <button onClick={handleEnroll} disabled={loading}>
+          Enable 2FA
         </button>
       )}
 
       {qrCode && (
-        <div className="space-y-4 rounded-xl border border-neutral-800 p-4">
-          <div>
-            <p className="text-sm font-medium">Step 1: Scan this QR code</p>
-            <p className="mt-1 text-xs text-neutral-400">If the QR code does not load, use the setup key below.</p>
-          </div>
+        <div className="space-y-2">
+          <img src={qrCode} alt="QR code" />
+          <p>Manual key: {secret}</p>
 
-          <img src={qrCode} alt="TOTP QR code" className="h-52 w-52 rounded-lg bg-white p-2" />
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Enter 6-digit code"
+          />
 
-          {secret && (
-            <div>
-              <p className="text-sm font-medium">Manual setup key</p>
-              <p className="mt-1 break-all rounded-lg border border-neutral-800 bg-neutral-950 p-3 text-sm text-neutral-300">
-                {secret}
-              </p>
-            </div>
-          )}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium">Step 2: Enter the 6-digit code</label>
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="123456"
-              inputMode="numeric"
-              className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 outline-none"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleVerify}
-              disabled={loading || code.trim().length < 6}
-              className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black disabled:opacity-60"
-            >
-              {loading ? "Verifying..." : "Verify and finish"}
-            </button>
-            <button
-              onClick={() => {
-                setFactorId(null);
-                setQrCode(null);
-                setSecret(null);
-                setCode("");
-                setMessage(null);
-                setSetupComplete(false);
-              }}
-              disabled={loading}
-              className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
-            >
-              Cancel
-            </button>
-          </div>
+          <button onClick={handleVerify} disabled={loading}>
+            Verify
+          </button>
         </div>
       )}
 
-      {message && <p className="text-sm text-neutral-300">{message}</p>}
-
-      {showContinueActions && !qrCode && (
-        <div className="flex flex-wrap gap-3 pt-1">
-          <a
-            href="/"
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
-          >
-            Go to dashboard
-          </a>
-          <a
-            href="/settings/security"
-            className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
-          >
-            Stay on security page
-          </a>
-        </div>
-      )}
-    </section>
+      {message && <p>{message}</p>}
+    </div>
   );
 }
