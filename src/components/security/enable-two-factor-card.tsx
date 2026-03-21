@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 type Factor = {
@@ -93,7 +92,7 @@ export function EnableTwoFactorCard() {
     setFactorId(null);
     setQrCode(null);
     setSecret(null);
-    loadFactors();
+    await loadFactors();
   }
 
   async function handleUnenroll(id: string) {
@@ -111,11 +110,13 @@ export function EnableTwoFactorCard() {
     }
 
     setMessage("Two-factor authentication factor removed.");
-    loadFactors();
+    await loadFactors();
   }
 
+  const showContinueActions = setupComplete || verifiedFactors.length > 0;
+
   return (
-    <section className="space-y-5 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
+    <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-5">
       <div>
         <h2 className="text-lg font-semibold">Authenticator app</h2>
         <p className="mt-1 text-sm text-neutral-400">
@@ -124,13 +125,10 @@ export function EnableTwoFactorCard() {
       </div>
 
       {verifiedFactors.length > 0 && (
-        <div className="space-y-3 rounded-xl border border-emerald-900 bg-emerald-950/40 p-4">
+        <div className="rounded-xl border border-emerald-900 bg-emerald-950/40 p-4 space-y-3">
           <p className="text-sm text-emerald-300">2FA is enabled on this account.</p>
           {verifiedFactors.map((factor) => (
-            <div
-              key={factor.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3"
-            >
+            <div key={factor.id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 p-3">
               <div>
                 <p className="font-medium">{factor.friendly_name || "Authenticator app"}</p>
                 <p className="text-xs text-neutral-400">Status: {factor.status}</p>
@@ -214,20 +212,20 @@ export function EnableTwoFactorCard() {
 
       {message && <p className="text-sm text-neutral-300">{message}</p>}
 
-      {setupComplete && (
-        <div className="flex flex-wrap gap-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-          <Link
+      {showContinueActions && !qrCode && (
+        <div className="flex flex-wrap gap-3 pt-1">
+          <a
             href="/"
             className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black"
           >
             Go to dashboard
-          </Link>
-          <Link
+          </a>
+          <a
             href="/settings/security"
             className="rounded-lg border border-neutral-700 px-4 py-2 text-sm hover:bg-neutral-800"
           >
             Stay on security page
-          </Link>
+          </a>
         </div>
       )}
     </section>
