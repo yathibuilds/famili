@@ -370,14 +370,24 @@ export function TasksCard() {
 
         <p style={{ color: "red" }}>Members loaded: {members.length}</p>
 
-        <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
-          <option value="">Assign to member (optional)</option>
-          {members.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.name}
-            </option>
-          ))}
-        </select>
+      <select
+  value={selectedMemberId}
+  onChange={(e) => setSelectedMemberId(e.target.value)}
+  style={{ padding: "8px", border: "1px solid #ccc", borderRadius: "6px" }}
+>
+  <option value="">Assign to member (optional)</option>
+  {members.map((member) => (
+    <option key={member.id} value={member.id}>
+      {member.name}
+    </option>
+  ))}
+</select>
+
+{selectedMemberId && (
+  <p style={{ fontSize: "14px" }}>
+    Assigned to: {members.find((m) => m.id === selectedMemberId)?.name}
+  </p>
+)}
 
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           {categories.map((c) => (
