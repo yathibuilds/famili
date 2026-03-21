@@ -7,12 +7,18 @@ type Task = {
   id: string;
   title: string;
   assigned_to_label: string | null;
+  assigned_to_member_id: string | null;
   status: string;
   current_deadline: string | null;
   original_deadline: string | null;
   deadline_revision_count: number;
   category: string | null;
   completed_at: string | null;
+};
+
+type Member = {
+  id: string;
+  name: string;
 };
 
 type FilterType = "all" | "pending" | "done";
@@ -34,10 +40,11 @@ const categories = [
 
 export function TasksCard() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [title, setTitle] = useState("");
-  const [assignee, setAssignee] = useState("");
   const [deadline, setDeadline] = useState("");
   const [category, setCategory] = useState("Other");
+  const [selectedMemberId, setSelectedMemberId] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [newDeadline, setNewDeadline] = useState("");
   const [message, setMessage] = useState("");
@@ -46,7 +53,51 @@ export function TasksCard() {
 
   useEffect(() => {
     void loadTasks();
+    void loadMembers();
   }, []);
+
+  async function getFamilyId() {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) return null;
+
+    const { data, error } = await supabase
+      .from("families")
+      .select("id")
+      .eq("created_by", user.id)
+      .maybeSingle();
+
+    if (error) {
+      setMessage(error.message);
+      return null;
+    }
+
+    return data?.id ?? null;
+  }
+
+  async function loadMembers() {
+    const familyId = await getFamilyId();
+    if (!familyId) {
+      setMembers([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("family_members")
+      .select("id, name")
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setMembers(data || []);
+  }
 
   async function loadTasks() {
     const { data, error } = await supabase
@@ -72,16 +123,25 @@ export function TasksCard() {
 
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from("tasks").insert({
+    if (userError || !user) {
+      setMessage("Could not find signed-in user.");
+      return;
+    }
+
+    const payload = {
       title,
-      assigned_to_label: assignee || null,
       original_deadline: deadline || null,
       current_deadline: deadline || null,
       category,
-      created_by: user?.id,
-    });
+      created_by: user.id,
+      assigned_to_member_id: selectedMemberId || null,
+      assigned_to_label: null,
+    };
+
+    const { error } = await supabase.from("tasks").insert(payload);
 
     if (error) {
       setMessage(error.message);
@@ -89,9 +149,9 @@ export function TasksCard() {
     }
 
     setTitle("");
-    setAssignee("");
     setDeadline("");
     setCategory("Other");
+    setSelectedMemberId("");
     setMessage("Task added.");
 
     await loadTasks();
@@ -121,7 +181,10 @@ export function TasksCard() {
   }
 
   async function saveNewDeadline(task: Task) {
-    if (!newDeadline) return;
+    if (!newDeadline) {
+      setMessage("Please choose a new deadline.");
+      return;
+    }
 
     const updatedCount = (task.deadline_revision_count || 0) + 1;
 
@@ -179,6 +242,17 @@ export function TasksCard() {
     if (task.status !== "done" && timing === "upcoming") return 3;
     if (task.status !== "done") return 4;
     return 5;
+  }
+
+  function getAssignedName(task: Task) {
+    if (task.assigned_to_member_id) {
+      const member = members.find((item) => item.id === task.assigned_to_member_id);
+      if (member?.name) return member.name;
+    }
+
+    if (task.assigned_to_label) return task.assigned_to_label;
+
+    return "Unassigned";
   }
 
   const summary = useMemo(() => {
@@ -246,9 +320,7 @@ export function TasksCard() {
     }
 
     if (selectedCategory) {
-      filtered = filtered.filter(
-        (t) => (t.category || "Other") === selectedCategory
-      );
+      filtered = filtered.filter((t) => (t.category || "Other") === selectedCategory);
     }
 
     return [...filtered].sort((a, b) => {
@@ -299,15 +371,20 @@ export function TasksCard() {
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        <input
-          placeholder="Assign to"
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-        />
+        <select value={selectedMemberId} onChange={(e) => setSelectedMemberId(e.target.value)}>
+          <option value="">Assign to member (optional)</option>
+          {members.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </select>
 
         <select value={category} onChange={(e) => setCategory(e.target.value)}>
           {categories.map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {c}
+            </option>
           ))}
         </select>
 
@@ -317,7 +394,7 @@ export function TasksCard() {
           onChange={(e) => setDeadline(e.target.value)}
         />
 
-        <button onClick={addTask}>Add Task</button>
+        <button onClick={() => void addTask()}>Add Task</button>
       </div>
 
       <div style={{ display: "flex", gap: "8px" }}>
@@ -337,8 +414,8 @@ export function TasksCard() {
           <div key={task.id} className="border p-2 space-y-1">
             <p>{task.title}</p>
             <p>{task.category || "Other"}</p>
+            <p>Assigned to: {getAssignedName(task)}</p>
 
-            {task.assigned_to_label && <p>Assigned to: {task.assigned_to_label}</p>}
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
             {task.deadline_revision_count > 0 && (
@@ -372,8 +449,8 @@ export function TasksCard() {
           <div key={task.id} className="border p-2 space-y-1">
             <p>{task.title}</p>
             <p>{task.category || "Other"}</p>
+            <p>Assigned to: {getAssignedName(task)}</p>
 
-            {task.assigned_to_label && <p>Assigned to: {task.assigned_to_label}</p>}
             {task.current_deadline && <p>Due: {task.current_deadline}</p>}
 
             <p>{getCompletionLabel(task)}</p>
