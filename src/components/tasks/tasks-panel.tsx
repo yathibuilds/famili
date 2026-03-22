@@ -45,7 +45,6 @@ export function TasksPanel() {
   const [deadline, setDeadline] = useState("");
   const [category, setCategory] = useState("Other");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [memberName, setMemberName] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -102,21 +101,6 @@ export function TasksPanel() {
     setSelectedMemberId("");
     setCategory("Other");
     await loadTasks();
-  }
-
-  async function addMember() {
-    if (!memberName.trim()) return;
-
-    const familyId = await getFamilyId();
-    if (!familyId) return;
-
-    await supabase.from("family_members").insert({
-      name: memberName,
-      family_id: familyId,
-    });
-
-    setMemberName("");
-    await loadMembers();
   }
 
   function getAssignedName(task: Task) {
@@ -232,106 +216,78 @@ export function TasksPanel() {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
-          <h3 className="text-lg font-semibold text-white">Add task</h3>
-          <p className="mt-2 text-sm leading-6 text-neutral-400">
-            Create a task with owner, category, and deadline in one clean flow.
-          </p>
+      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
+        <h3 className="text-lg font-semibold text-white">Add task</h3>
+        <p className="mt-2 text-sm leading-6 text-neutral-400">
+          Create a task with owner, category, and deadline in one clean flow.
+        </p>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-neutral-200">Task title</label>
-              <input
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
-                placeholder="Enter task title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-neutral-200">Assign to</label>
-              <select
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
-                value={selectedMemberId}
-                onChange={(event) => setSelectedMemberId(event.target.value)}
-              >
-                <option value="">Assign member</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-neutral-200">Category</label>
-              <select
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-              >
-                {categories.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-neutral-200">Deadline</label>
-              <input
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
-                type="date"
-                value={deadline}
-                onChange={(event) => setDeadline(event.target.value)}
-              />
-            </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-neutral-200">Task title</label>
+            <input
+              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
+              placeholder="Enter task title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
           </div>
 
-          {selectedMemberId ? (
-            <p className="mt-4 text-sm text-neutral-400">
-              Assigned to: {members.find((member) => member.id === selectedMemberId)?.name}
-            </p>
-          ) : null}
-
-          <button
-            className="mt-5 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300"
-            onClick={() => void addTask()}
-          >
-            Add Task
-          </button>
-        </section>
-
-        <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
-          <h3 className="text-lg font-semibold text-white">Add member</h3>
-          <p className="mt-2 text-sm leading-6 text-neutral-400">
-            Add family members here so they can immediately be assigned to tasks.
-          </p>
-
-          <div className="mt-5 space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-neutral-200">Member name</label>
-              <input
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
-                placeholder="Enter family member name"
-                value={memberName}
-                onChange={(event) => setMemberName(event.target.value)}
-              />
-            </div>
-
-            <button
-              className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300"
-              onClick={() => void addMember()}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-neutral-200">Assign to</label>
+            <select
+              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+              value={selectedMemberId}
+              onChange={(event) => setSelectedMemberId(event.target.value)}
             >
-              Add Member
-            </button>
+              <option value="">Assign member</option>
+              {members.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
           </div>
-        </section>
-      </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-neutral-200">Category</label>
+            <select
+              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+            >
+              {categories.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium text-neutral-200">Deadline</label>
+            <input
+              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+              type="date"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
+            />
+          </div>
+        </div>
+
+        {selectedMemberId ? (
+          <p className="mt-4 text-sm text-neutral-400">
+            Assigned to: {members.find((member) => member.id === selectedMemberId)?.name}
+          </p>
+        ) : null}
+
+        <button
+          className="mt-5 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300"
+          onClick={() => void addTask()}
+        >
+          Add Task
+        </button>
+      </section>
 
       <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
         <h3 className="text-lg font-semibold text-white">Task Board</h3>
