@@ -6,8 +6,14 @@ import { supabase } from "@/lib/supabase";
 type Member = {
   id: string;
   name: string;
+  user_id?: string | null;
   role?: string | null;
   relationship?: string | null;
+};
+
+type TaskForReassignment = {
+  id: string;
+  status?: string | null;
 };
 
 const roles = ["Admin", "Parent", "Member", "Child"];
@@ -41,6 +47,14 @@ export function MembersPanel({
     void loadMembers();
   }, []);
 
+  async function getUserId() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    return user?.id ?? null;
+  }
+
   async function getFamilyId() {
     const {
       data: { user },
@@ -52,7 +66,20 @@ export function MembersPanel({
       .eq("created_by", user?.id)
       .maybeSingle();
 
-    return data?.id;
+    return data?.id ?? null;
+  }
+
+  async function getCurrentUserAsMember(): Promise<Member | null> {
+    const userId = await getUserId();
+    if (!userId) return null;
+
+    const { data } = await supabase
+      .from("family_members")
+      .select("id,name,user_id,role,relationship")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    return data || null;
   }
 
   async function loadMembers() {
@@ -163,42 +190,77 @@ export function MembersPanel({
     setLoading(true);
     setMessage(null);
 
-    const { count, error: countError } = await supabase
-      .from("tasks")
-      .select("id", { count: "exact", head: true })
-      .eq("assigned_to_member_id", memberId);
+    const familyId = await getFamilyId();
+    const currentUser = await getCurrentUserAsMember();
+    const changedBy = await getUserId();
 
-    if (countError) {
+    if (!familyId || !currentUser || !changedBy) {
       setLoading(false);
-      console.error("Task count failed:", countError);
-      setMessage(countError.message);
-      alert(`Could not check assigned tasks: ${countError.message}`);
+      setMessage("Your member profile is missing. Deletion cannot continue.");
       return;
     }
 
-    const assignedCount = count ?? 0;
+    if (currentUser.id === memberId) {
+      setLoading(false);
+      setMessage("You cannot delete your own linked member profile.");
+      return;
+    }
+
+    const { data: assignedTasks, error: taskFetchError } = await supabase
+      .from("tasks")
+      .select("id,status")
+      .eq("family_id", familyId)
+      .eq("assigned_to_member_id", memberId);
+
+    if (taskFetchError) {
+      setLoading(false);
+      setMessage(taskFetchError.message);
+      return;
+    }
+
+    const tasksToReassign = (assignedTasks || []) as TaskForReassignment[];
+    const assignedCount = tasksToReassign.length;
+
     const confirmMessage =
       assignedCount > 0
-        ? `Remove ${memberName}? ${assignedCount} assigned task(s) will be unassigned.`
+        ? `Remove ${memberName}? ${assignedCount} assigned task(s) will be reassigned to you by default before deletion.`
         : `Remove ${memberName}?`;
 
     const confirmed = confirm(confirmMessage);
+
     if (!confirmed) {
       setLoading(false);
       return;
     }
 
     if (assignedCount > 0) {
-      const { error: unassignError } = await supabase
+      const { error: reassignError } = await supabase
         .from("tasks")
-        .update({ assigned_to_member_id: null })
+        .update({ assigned_to_member_id: currentUser.id })
+        .eq("family_id", familyId)
         .eq("assigned_to_member_id", memberId);
 
-      if (unassignError) {
+      if (reassignError) {
         setLoading(false);
-        console.error("Task unassign failed:", unassignError);
-        setMessage(unassignError.message);
-        alert(`Could not unassign tasks: ${unassignError.message}`);
+        setMessage(reassignError.message);
+        return;
+      }
+
+      const reassignmentEvents = tasksToReassign.map((task) => ({
+        task_id: task.id,
+        family_id: familyId,
+        event_type: "member_deleted_reassignment",
+        event_reason: `${memberName} was removed. Task reassigned to ${currentUser.name}.`,
+        old_status: task.status ?? null,
+        new_status: task.status ?? null,
+        changed_by: changedBy,
+      }));
+
+      const { error: eventError } = await supabase.from("task_events").insert(reassignmentEvents);
+
+      if (eventError) {
+        setLoading(false);
+        setMessage(eventError.message);
         return;
       }
     }
@@ -210,9 +272,7 @@ export function MembersPanel({
 
     if (deleteError) {
       setLoading(false);
-      console.error("Member delete failed:", deleteError);
       setMessage(deleteError.message);
-      alert(`Could not remove member: ${deleteError.message}`);
       return;
     }
 
@@ -222,7 +282,12 @@ export function MembersPanel({
       cancelEdit();
     }
 
-    setMessage("Member removed.");
+    setMessage(
+      assignedCount > 0
+        ? `Member removed. ${assignedCount} task(s) were reassigned to you.`
+        : "Member removed."
+    );
+
     await loadMembers();
     onMemberChange?.();
   }
