@@ -7,6 +7,7 @@ type Member = {
   id: string;
   name: string;
   role?: string | null;
+  relationship?: string | null;
 };
 
 const roles = ["Admin", "Parent", "Member", "Child"];
@@ -20,8 +21,16 @@ const roleColors: Record<string, string> = {
 
 export function MembersPanel() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("Member");
+  const [relationship, setRelationship] = useState("");
+
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>("Member");
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("Member");
+  const [editRelationship, setEditRelationship] = useState("");
 
   useEffect(() => {
     void loadMembers();
@@ -58,37 +67,81 @@ export function MembersPanel() {
     return member.role?.trim() || "Member";
   }
 
-  function getRoleClass(role: string) {
-    return (
-      roleColors[role] ||
-      "border-neutral-700 bg-neutral-900 text-neutral-300"
-    );
+  function getRelationshipLabel(member: Member) {
+    return member.relationship?.trim() || "Family member";
+  }
+
+  function getRoleClass(nextRole: string) {
+    return roleColors[nextRole] || "border-neutral-700 bg-neutral-900 text-neutral-300";
+  }
+
+  async function addMember() {
+    if (!name.trim()) return;
+
+    const familyId = await getFamilyId();
+    if (!familyId) return;
+
+    setLoading(true);
+
+    await supabase.from("family_members").insert({
+      family_id: familyId,
+      name: name.trim(),
+      role,
+      relationship: relationship.trim() || null,
+    });
+
+    setName("");
+    setRole("Member");
+    setRelationship("");
+    setLoading(false);
+    await loadMembers();
   }
 
   function startEdit(member: Member) {
     setEditingId(member.id);
-    setSelectedRole(getRoleLabel(member));
+    setEditName(member.name || "");
+    setEditRole(member.role?.trim() || "Member");
+    setEditRelationship(member.relationship?.trim() || "");
   }
 
-  async function saveRole(memberId: string) {
+  function cancelEdit() {
+    setEditingId(null);
+    setEditName("");
+    setEditRole("Member");
+    setEditRelationship("");
+  }
+
+  async function saveMember(memberId: string) {
+    if (!editName.trim()) return;
+
+    setLoading(true);
+
     await supabase
       .from("family_members")
-      .update({ role: selectedRole })
+      .update({
+        name: editName.trim(),
+        role: editRole,
+        relationship: editRelationship.trim() || null,
+      })
       .eq("id", memberId);
 
-    setEditingId(null);
+    setLoading(false);
+    cancelEdit();
     await loadMembers();
   }
 
   async function removeMember(memberId: string) {
-    const confirmDelete = confirm("Remove this member?");
-    if (!confirmDelete) return;
+    const confirmed = confirm("Remove this family member?");
+    if (!confirmed) return;
 
-    await supabase
-      .from("family_members")
-      .delete()
-      .eq("id", memberId);
+    setLoading(true);
 
+    await supabase.from("family_members").delete().eq("id", memberId);
+
+    setLoading(false);
+    if (editingId === memberId) {
+      cancelEdit();
+    }
     await loadMembers();
   }
 
@@ -98,110 +151,205 @@ export function MembersPanel() {
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
           Family
         </p>
-        <h2 className="mt-3 text-2xl font-semibold">
-          Members and household circle
-        </h2>
+        <h2 className="mt-3 text-2xl font-semibold">Members and household circle</h2>
         <p className="mt-2 text-sm leading-6 text-neutral-300">
-          Manage roles and keep your household structured.
+          Add, manage, and organise everyone in your household from one place.
         </p>
       </div>
 
-      <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
-        <div className="flex justify-between items-end">
-          <div>
-            <h3 className="text-lg font-semibold text-white">Member Directory</h3>
-            <p className="mt-2 text-sm text-neutral-400">
-              Manage roles and permissions for each member.
-            </p>
-          </div>
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
+          <h3 className="text-lg font-semibold text-white">Add member</h3>
+          <p className="mt-2 text-sm leading-6 text-neutral-400">
+            Create a complete family profile with role and relationship.
+          </p>
 
-          <div className="text-sm text-neutral-400">
-            {members.length} members
-          </div>
-        </div>
+          <div className="mt-5 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-200">Name</label>
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Enter family member name"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
+              />
+            </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {members.map((member) => {
-            const roleLabel = getRoleLabel(member);
-
-            return (
-              <article
-                key={member.id}
-                className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4"
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-200">Role</label>
+              <select
+                value={role}
+                onChange={(event) => setRole(event.target.value)}
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-500/15 text-sm font-semibold text-cyan-200">
-                      {member.name.charAt(0).toUpperCase()}
+                {roles.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-200">Relationship</label>
+              <input
+                value={relationship}
+                onChange={(event) => setRelationship(event.target.value)}
+                placeholder="Examples: Wife, Son, Brother, Mother"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
+              />
+            </div>
+
+            <button
+              onClick={() => void addMember()}
+              disabled={loading || !name.trim()}
+              className="w-full rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? "Saving..." : "Add Member"}
+            </button>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-white">Member Directory</h3>
+              <p className="mt-2 text-sm leading-6 text-neutral-400">
+                Manage names, roles, and relationship details for each member.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm text-neutral-300">
+              Total members: <span className="font-medium text-white">{members.length}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+            {members.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/60 p-5 text-sm text-neutral-400 md:col-span-2">
+                <p className="font-medium text-white">No family members yet</p>
+                <p className="mt-2 leading-6 text-neutral-400">
+                  Add members here so they can be assigned to tasks and included in future planning.
+                </p>
+              </div>
+            ) : null}
+
+            {members.map((member) => {
+              const roleLabel = getRoleLabel(member);
+              const relationshipLabel = getRelationshipLabel(member);
+              const isEditing = editingId === member.id;
+
+              return (
+                <article
+                  key={member.id}
+                  className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-500/15 text-sm font-semibold text-cyan-200">
+                        {member.name.trim().charAt(0).toUpperCase() || "F"}
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-white">{member.name}</p>
+                        <p className="mt-1 text-sm text-neutral-400">{relationshipLabel}</p>
+                      </div>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-semibold text-white">{member.name}</p>
-                      <p className="text-sm text-neutral-400">
-                        Available for tasks
-                      </p>
-                    </div>
+                    {!isEditing ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(member)}
+                        className="rounded-2xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-medium text-neutral-300 transition hover:bg-neutral-800 hover:text-white"
+                      >
+                        Manage
+                      </button>
+                    ) : null}
                   </div>
 
-                  <button
-                    onClick={() => startEdit(member)}
-                    className="text-xs text-neutral-400 hover:text-white"
-                  >
-                    Manage
-                  </button>
-                </div>
-
-                <div className="mt-4">
-                  {editingId === member.id ? (
-                    <div className="space-y-3">
-                      <select
-                        value={selectedRole}
-                        onChange={(e) => setSelectedRole(e.target.value)}
-                        className="w-full rounded-xl bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm"
+                  {!isEditing ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span
+                        className={`rounded-full border px-3 py-1.5 text-xs font-medium ${getRoleClass(
+                          roleLabel
+                        )}`}
                       >
-                        {roles.map((r) => (
-                          <option key={r}>{r}</option>
-                        ))}
-                      </select>
+                        {roleLabel}
+                      </span>
+                      <span className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-neutral-300">
+                        Available for task assignment
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-200">Name</label>
+                        <input
+                          value={editName}
+                          onChange={(event) => setEditName(event.target.value)}
+                          className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-200">Role</label>
+                        <select
+                          value={editRole}
+                          onChange={(event) => setEditRole(event.target.value)}
+                          className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                        >
+                          {roles.map((item) => (
+                            <option key={item} value={item}>
+                              {item}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-neutral-200">Relationship</label>
+                        <input
+                          value={editRelationship}
+                          onChange={(event) => setEditRelationship(event.target.value)}
+                          placeholder="Examples: Wife, Son, Brother, Mother"
+                          className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-500 focus:border-cyan-400"
+                        />
+                      </div>
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => saveRole(member.id)}
-                          className="flex-1 bg-cyan-400 text-black text-sm rounded-xl py-2"
+                          type="button"
+                          onClick={() => void saveMember(member.id)}
+                          disabled={loading || !editName.trim()}
+                          className="flex-1 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Save
                         </button>
 
                         <button
-                          onClick={() => setEditingId(null)}
-                          className="flex-1 border border-neutral-700 text-sm rounded-xl py-2"
+                          type="button"
+                          onClick={cancelEdit}
+                          className="flex-1 rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
                         >
                           Cancel
                         </button>
                       </div>
 
                       <button
-                        onClick={() => removeMember(member.id)}
-                        className="w-full text-red-400 text-xs mt-2"
+                        type="button"
+                        onClick={() => void removeMember(member.id)}
+                        className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
                       >
                         Remove member
                       </button>
                     </div>
-                  ) : (
-                    <span
-                      className={`inline-block rounded-full px-3 py-1 text-xs ${getRoleClass(
-                        roleLabel
-                      )}`}
-                    >
-                      {roleLabel}
-                    </span>
                   )}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
     </section>
   );
 }
