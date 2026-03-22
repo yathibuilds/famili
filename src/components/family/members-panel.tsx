@@ -39,6 +39,9 @@ export function MembersPanel({
   const [relationship, setRelationship] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingOriginalRole, setEditingOriginalRole] = useState<string | null>(null);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
+
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("Member");
   const [editRelationship, setEditRelationship] = useState("");
@@ -85,6 +88,9 @@ export function MembersPanel({
   async function loadMembers() {
     const familyId = await getFamilyId();
     if (!familyId) return;
+
+    const currentUserMember = await getCurrentUserAsMember();
+    setCurrentMemberId(currentUserMember?.id ?? null);
 
     const { data, error } = await supabase
       .from("family_members")
@@ -160,15 +166,19 @@ export function MembersPanel({
   }
 
   function startEdit(member: Member) {
+    const roleLabel = member.role?.trim() || "Member";
+
     setEditingId(member.id);
+    setEditingOriginalRole(roleLabel);
     setEditName(member.name || "");
-    setEditRole(member.role?.trim() || "Member");
+    setEditRole(roleLabel);
     setEditRelationship(member.relationship?.trim() || "");
     setMessage(null);
   }
 
   function cancelEdit() {
     setEditingId(null);
+    setEditingOriginalRole(null);
     setEditName("");
     setEditRole("Member");
     setEditRelationship("");
@@ -176,7 +186,12 @@ export function MembersPanel({
 
   async function saveMember(memberId: string) {
     if (!editName.trim()) return;
-    if (!confirmChildParentRule(editRole)) return;
+
+    const nextRole = editingOriginalRole === "Child" ? "Child" : editRole;
+
+    if (editingOriginalRole !== "Child" && !confirmChildParentRule(nextRole)) {
+      return;
+    }
 
     setLoading(true);
     setMessage(null);
@@ -185,8 +200,9 @@ export function MembersPanel({
       .from("family_members")
       .update({
         name: editName.trim(),
-        role: editRole,
-        relationship: editRelationship.trim() || (editRole === "Child" ? "Child" : null),
+        role: nextRole,
+        relationship:
+          editRelationship.trim() || (nextRole === "Child" ? "Child" : null),
       })
       .eq("id", memberId);
 
@@ -240,7 +256,7 @@ export function MembersPanel({
 
     const confirmMessage =
       assignedCount > 0
-        ? `Remove ${memberName}? ${assignedCount} assigned task(s) will be reassigned to you by default before deletion.`
+        ? `Remove ${memberName}? ${assignedCount} assigned task(s) will be reassigned to you and the member will be deleted in one step.`
         : `Remove ${memberName}?`;
 
     const confirmed = confirm(confirmMessage);
@@ -273,7 +289,9 @@ export function MembersPanel({
         changed_by: changedBy,
       }));
 
-      const { error: eventError } = await supabase.from("task_events").insert(reassignmentEvents);
+      const { error: eventError } = await supabase
+        .from("task_events")
+        .insert(reassignmentEvents);
 
       if (eventError) {
         setLoading(false);
@@ -409,6 +427,8 @@ export function MembersPanel({
               const roleLabel = getRoleLabel(member);
               const relationshipLabel = getRelationshipLabel(member);
               const isEditing = editingId === member.id;
+              const isSelf = currentMemberId === member.id;
+              const isChildLocked = editingOriginalRole === "Child" && isEditing;
 
               return (
                 <article
@@ -467,7 +487,8 @@ export function MembersPanel({
                         <select
                           value={editRole}
                           onChange={(event) => setEditRole(event.target.value)}
-                          className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                          disabled={isChildLocked}
+                          className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {roles.map((item) => (
                             <option key={item} value={item}>
@@ -475,6 +496,11 @@ export function MembersPanel({
                             </option>
                           ))}
                         </select>
+                        {isChildLocked ? (
+                          <p className="text-xs text-neutral-500">
+                            Child role is locked. Remove and recreate if needed.
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-2">
@@ -509,10 +535,17 @@ export function MembersPanel({
                       <button
                         type="button"
                         onClick={() => void removeMember(member.id, member.name)}
-                        className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
+                        disabled={isSelf}
+                        className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Remove member
                       </button>
+
+                      {isSelf ? (
+                        <p className="text-xs text-neutral-500">
+                          You can&apos;t delete yourself.
+                        </p>
+                      ) : null}
                     </div>
                   )}
                 </article>
