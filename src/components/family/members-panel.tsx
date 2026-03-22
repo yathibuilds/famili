@@ -22,6 +22,7 @@ const roleColors: Record<string, string> = {
 export function MembersPanel() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [role, setRole] = useState("Member");
@@ -54,11 +55,16 @@ export function MembersPanel() {
     const familyId = await getFamilyId();
     if (!familyId) return;
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("family_members")
       .select("*")
       .eq("family_id", familyId)
       .order("created_at", { ascending: true });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
 
     setMembers(data || []);
   }
@@ -82,18 +88,26 @@ export function MembersPanel() {
     if (!familyId) return;
 
     setLoading(true);
+    setMessage(null);
 
-    await supabase.from("family_members").insert({
+    const { error } = await supabase.from("family_members").insert({
       family_id: familyId,
       name: name.trim(),
       role,
       relationship: relationship.trim() || null,
     });
 
+    setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
     setName("");
     setRole("Member");
     setRelationship("");
-    setLoading(false);
+    setMessage("Member added.");
     await loadMembers();
   }
 
@@ -102,6 +116,7 @@ export function MembersPanel() {
     setEditName(member.name || "");
     setEditRole(member.role?.trim() || "Member");
     setEditRelationship(member.relationship?.trim() || "");
+    setMessage(null);
   }
 
   function cancelEdit() {
@@ -115,8 +130,9 @@ export function MembersPanel() {
     if (!editName.trim()) return;
 
     setLoading(true);
+    setMessage(null);
 
-    await supabase
+    const { error } = await supabase
       .from("family_members")
       .update({
         name: editName.trim(),
@@ -126,22 +142,54 @@ export function MembersPanel() {
       .eq("id", memberId);
 
     setLoading(false);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
     cancelEdit();
+    setMessage("Member updated.");
     await loadMembers();
   }
 
-  async function removeMember(memberId: string) {
-    const confirmed = confirm("Remove this family member?");
+  async function removeMember(memberId: string, memberName: string) {
+    const confirmed = confirm(
+      `Remove ${memberName}? Any tasks assigned to this member will be unassigned.`
+    );
     if (!confirmed) return;
 
     setLoading(true);
+    setMessage(null);
 
-    await supabase.from("family_members").delete().eq("id", memberId);
+    const { error: unassignError } = await supabase
+      .from("tasks")
+      .update({ assigned_to_member_id: null })
+      .eq("assigned_to_member_id", memberId);
+
+    if (unassignError) {
+      setLoading(false);
+      setMessage(unassignError.message);
+      return;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("family_members")
+      .delete()
+      .eq("id", memberId);
 
     setLoading(false);
+
+    if (deleteError) {
+      setMessage(deleteError.message);
+      return;
+    }
+
     if (editingId === memberId) {
       cancelEdit();
     }
+
+    setMessage("Member removed.");
     await loadMembers();
   }
 
@@ -223,6 +271,12 @@ export function MembersPanel() {
               Total members: <span className="font-medium text-white">{members.length}</span>
             </div>
           </div>
+
+          {message ? (
+            <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/70 px-4 py-3 text-sm text-neutral-300">
+              {message}
+            </div>
+          ) : null}
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-2">
             {members.length === 0 ? (
@@ -337,7 +391,7 @@ export function MembersPanel() {
 
                       <button
                         type="button"
-                        onClick={() => void removeMember(member.id)}
+                        onClick={() => void removeMember(member.id, member.name)}
                         className="w-full rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/15"
                       >
                         Remove member
