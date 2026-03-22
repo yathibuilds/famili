@@ -88,7 +88,7 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
   const { data } = await supabase
     .from("family_members")
     .select("id,name")
-    .eq("id", user.id)
+    .eq("user_id", user.id)
     .maybeSingle();
 
   if (data) return data;
@@ -146,33 +146,38 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
   }
 
   async function addTask() {
-    if (!title.trim()) return;
+  if (!title.trim()) return;
 
-    setMessage(null);
+  setMessage(null);
 
-    const currentUser = await getCurrentUserAsMember();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from("tasks").insert({
-      title: title.trim(),
-      category,
-      current_deadline: deadline || null,
-      original_deadline: deadline || null,
-      assigned_to_member_id: selectedMemberId || currentUser?.id || null,
-      status: "pending",
-    });
+  const currentUser = await getCurrentUserAsMember();
 
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
+  const { error } = await supabase.from("tasks").insert({
+    title: title.trim(),
+    category,
+    current_deadline: deadline || null,
+    original_deadline: deadline || null,
+    assigned_to_member_id: selectedMemberId || currentUser?.id || null,
+    created_by: user?.id ?? null,
+    status: "pending",
+  });
 
-    setTitle("");
-    setDeadline("");
-    setSelectedMemberId("");
-    setCategory("Other");
-    setMessage("Task added.");
-    await loadTasks();
+  if (error) {
+    setMessage(error.message);
+    return;
   }
+
+  setTitle("");
+  setDeadline("");
+  setSelectedMemberId("");
+  setCategory("Other");
+  setMessage("Task added.");
+  await loadTasks();
+}
 
   async function logTaskEvent(taskId: string, payload: {
     eventType: string;
