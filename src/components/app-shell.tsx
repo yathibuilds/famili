@@ -45,7 +45,15 @@ async function ensureFamily() {
   }
 }
 
-function Dashboard({ email }: { email: string }) {
+function Dashboard({
+  email,
+  membersRefreshKey,
+  onMemberChange,
+}: {
+  email: string;
+  membersRefreshKey: number;
+  onMemberChange: () => void;
+}) {
   return (
     <main className="min-h-screen bg-neutral-950 text-white lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
       <Sidebar />
@@ -105,8 +113,8 @@ function Dashboard({ email }: { email: string }) {
           ))}
         </section>
 
-        <TasksPanel />
-        <MembersPanel />
+        <TasksPanel refreshKey={membersRefreshKey} />
+        <MembersPanel onMemberChange={onMemberChange} />
       </section>
     </main>
   );
@@ -275,7 +283,7 @@ function AuthCard() {
 export function AppShell() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [requiresMfa, setRequiresMfa] = useState(false);
+  const [membersRefreshKey, setMembersRefreshKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -377,5 +385,11 @@ export function AppShell() {
     );
   }
 
-  return <Dashboard email={session.user.email ?? "Signed in user"} />;
+  return (
+  <Dashboard
+    email={session.user.email ?? "Signed in user"}
+    membersRefreshKey={membersRefreshKey}
+    onMemberChange={() => setMembersRefreshKey((prev) => prev + 1)}
+  />
+);
 }
