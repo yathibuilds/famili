@@ -515,7 +515,7 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
               value={selectedMemberId}
               onChange={(event) => setSelectedMemberId(event.target.value)}
             >
-              <option value="">Assign member</option>
+              <option value="">Assign member (defaults to you)</option>
               {members.map((member) => (
                 <option key={member.id} value={member.id}>
                   {member.name}
