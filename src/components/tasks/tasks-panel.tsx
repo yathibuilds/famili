@@ -71,13 +71,34 @@ export function TasksPanel() {
   }, []);
 
   async function getUserId() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    return user?.id ?? null;
-  }
+  return user?.id ?? null;
+}
 
+async function getCurrentUserAsMember(): Promise<Member | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data } = await supabase
+    .from("family_members")
+    .select("id,name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (data) return data;
+
+  return {
+    id: user.id,
+    name: "You",
+  };
+}
+  
   async function getFamilyId() {
     const {
       data: { user },
