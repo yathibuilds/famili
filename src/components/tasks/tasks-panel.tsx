@@ -50,7 +50,7 @@ export function TasksPanel() {
   const [deadline, setDeadline] = useState("");
   const [category, setCategory] = useState("Other");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>("pending");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
@@ -155,7 +155,7 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
       category,
       current_deadline: deadline || null,
       original_deadline: deadline || null,
-      assigned_to_member_id: selectedMemberId || null,
+      assigned_to_member_id: selectedMemberId || userId,
       status: "pending",
     });
 
