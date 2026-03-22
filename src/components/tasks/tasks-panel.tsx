@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 type Task = {
   id: string;
   title: string;
+  family_id?: string | null;
   assigned_to_label?: string | null;
   assigned_to_member_id?: string | null;
   status?: string | null;
@@ -24,6 +25,7 @@ type Task = {
 type Member = {
   id: string;
   name: string;
+  user_id?: string | null;
 };
 
 type FilterType = "all" | "pending" | "done";
@@ -70,39 +72,18 @@ export function TasksPanel({
   const [editDeadline, setEditDeadline] = useState("");
 
   useEffect(() => {
-  void loadTasks();
-  void loadMembers();
-}, [refreshKey]);
+    void loadTasks();
+    void loadMembers();
+  }, [refreshKey]);
 
   async function getUserId() {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  return user?.id ?? null;
-}
+    return user?.id ?? null;
+  }
 
-async function getCurrentUserAsMember(): Promise<Member | null> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data } = await supabase
-    .from("family_members")
-    .select("id,name")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (data) return data;
-
-  return {
-    id: user.id,
-    name: "You",
-  };
-}
-  
   async function getFamilyId() {
     const {
       data: { user },
@@ -117,13 +98,31 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
     return data?.id ?? null;
   }
 
+  async function getCurrentUserAsMember(): Promise<Member | null> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return null;
+
+    const { data } = await supabase
+      .from("family_members")
+      .select("id,name,user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (data) return data;
+
+    return null;
+  }
+
   async function loadMembers() {
     const familyId = await getFamilyId();
     if (!familyId) return;
 
     const { data, error } = await supabase
       .from("family_members")
-      .select("id,name")
+      .select("id,name,user_id")
       .eq("family_id", familyId)
       .order("created_at", { ascending: true });
 
@@ -136,9 +135,13 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
   }
 
   async function loadTasks() {
+    const familyId = await getFamilyId();
+    if (!familyId) return;
+
     const { data, error } = await supabase
       .from("tasks")
       .select("*")
+      .eq("family_id", familyId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -150,45 +153,60 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
   }
 
   async function addTask() {
-  if (!title.trim()) return;
+    if (!title.trim()) return;
 
-  setMessage(null);
+    setMessage(null);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  const currentUser = await getCurrentUserAsMember();
+    const familyId = await getFamilyId();
+    const currentUserMember = await getCurrentUserAsMember();
 
-  const { error } = await supabase.from("tasks").insert({
-    title: title.trim(),
-    category,
-    current_deadline: deadline || null,
-    original_deadline: deadline || null,
-    assigned_to_member_id: selectedMemberId || currentUser?.id || null,
-    created_by: user?.id ?? null,
-    status: "pending",
-  });
+    if (!familyId) {
+      setMessage("Family context is missing.");
+      return;
+    }
 
-  if (error) {
-    setMessage(error.message);
-    return;
+    if (!selectedMemberId && !currentUserMember?.id) {
+      setMessage("No default member profile found for you. Please assign the task manually.");
+      return;
+    }
+
+    const { error } = await supabase.from("tasks").insert({
+      title: title.trim(),
+      family_id: familyId,
+      category,
+      current_deadline: deadline || null,
+      original_deadline: deadline || null,
+      assigned_to_member_id: selectedMemberId || currentUserMember?.id || null,
+      created_by: user?.id ?? null,
+      status: "pending",
+    });
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setTitle("");
+    setDeadline("");
+    setSelectedMemberId("");
+    setCategory("Other");
+    setMessage("Task added.");
+    await loadTasks();
   }
 
-  setTitle("");
-  setDeadline("");
-  setSelectedMemberId("");
-  setCategory("Other");
-  setMessage("Task added.");
-  await loadTasks();
-}
-
-  async function logTaskEvent(taskId: string, payload: {
-    eventType: string;
-    reason?: string | null;
-    oldStatus?: string | null;
-    newStatus?: string | null;
-  }) {
+  async function logTaskEvent(
+    taskId: string,
+    payload: {
+      eventType: string;
+      reason?: string | null;
+      oldStatus?: string | null;
+      newStatus?: string | null;
+    }
+  ) {
     const userId = await getUserId();
     const familyId = await getFamilyId();
 
@@ -205,7 +223,7 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
 
   function getAssignedName(task: Task) {
     if (task.assigned_to_member_id) {
-      const member = members.find((memberItem) => memberItem.id === task.assigned_to_member_id);
+      const member = members.find((item) => item.id === task.assigned_to_member_id);
       if (member?.name) return member.name;
     }
     if (task.assigned_to_label) return task.assigned_to_label;
@@ -379,14 +397,20 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
     setMessage(null);
 
     const nextDeadline = editDeadline || null;
+    const nextMemberId = editMemberId || null;
     const deadlineChanged = (task.current_deadline || null) !== nextDeadline;
+    const assigneeChanged = (task.assigned_to_member_id || null) !== nextMemberId;
+
+    const previousAssigneeName = getAssignedName(task);
+    const nextAssigneeName =
+      members.find((member) => member.id === nextMemberId)?.name || "Unassigned";
 
     const { error } = await supabase
       .from("tasks")
       .update({
         title: editTitle.trim(),
         category: editCategory,
-        assigned_to_member_id: editMemberId || null,
+        assigned_to_member_id: nextMemberId,
         current_deadline: nextDeadline,
         deadline_revision_count: deadlineChanged
           ? (task.deadline_revision_count || 0) + 1
@@ -404,6 +428,15 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
       await logTaskEvent(task.id, {
         eventType: "deadline_changed",
         reason: `Deadline changed from ${task.current_deadline || "none"} to ${nextDeadline || "none"}`,
+        oldStatus: task.status || "pending",
+        newStatus: task.status || "pending",
+      });
+    }
+
+    if (assigneeChanged) {
+      await logTaskEvent(task.id, {
+        eventType: "assignment_changed",
+        reason: `Assignee changed from ${previousAssigneeName} to ${nextAssigneeName}`,
         oldStatus: task.status || "pending",
         newStatus: task.status || "pending",
       });
