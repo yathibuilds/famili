@@ -283,6 +283,7 @@ function AuthCard() {
 export function AppShell() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [requiresMfa, setRequiresMfa] = useState(false);
   const [membersRefreshKey, setMembersRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -326,7 +327,11 @@ export function AppShell() {
 
         setRequiresMfa(mustVerifyMfa);
 
-        if (mustVerifyMfa && typeof window !== "undefined" && window.location.pathname !== "/auth/mfa") {
+        if (
+          mustVerifyMfa &&
+          typeof window !== "undefined" &&
+          window.location.pathname !== "/auth/mfa"
+        ) {
           window.location.replace("/auth/mfa");
         }
       } catch (error) {
@@ -386,10 +391,10 @@ export function AppShell() {
   }
 
   return (
-  <Dashboard
-    email={session.user.email ?? "Signed in user"}
-    membersRefreshKey={membersRefreshKey}
-    onMemberChange={() => setMembersRefreshKey((prev) => prev + 1)}
-  />
-);
+    <Dashboard
+      email={session.user.email ?? "Signed in user"}
+      membersRefreshKey={membersRefreshKey}
+      onMemberChange={() => setMembersRefreshKey((prev) => prev + 1)}
+    />
+  );
 }
