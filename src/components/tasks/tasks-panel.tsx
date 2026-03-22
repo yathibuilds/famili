@@ -150,12 +150,14 @@ async function getCurrentUserAsMember(): Promise<Member | null> {
 
     setMessage(null);
 
+    const currentUser = await getCurrentUserAsMember();
+
     const { error } = await supabase.from("tasks").insert({
       title: title.trim(),
       category,
       current_deadline: deadline || null,
       original_deadline: deadline || null,
-      assigned_to_member_id: selectedMemberId || userId,
+      assigned_to_member_id: selectedMemberId || currentUser?.id || null,
       status: "pending",
     });
 
