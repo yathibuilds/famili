@@ -19,7 +19,11 @@ const roleColors: Record<string, string> = {
   Member: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
 };
 
-export function MembersPanel() {
+export function MembersPanel({
+  onMemberChange,
+}: {
+  onMemberChange?: () => void;
+}) {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -109,6 +113,7 @@ export function MembersPanel() {
     setRelationship("");
     setMessage("Member added.");
     await loadMembers();
+    onMemberChange?.();
   }
 
   function startEdit(member: Member) {
@@ -151,6 +156,7 @@ export function MembersPanel() {
     cancelEdit();
     setMessage("Member updated.");
     await loadMembers();
+    onMemberChange?.();
   }
 
   async function removeMember(memberId: string, memberName: string) {
@@ -218,6 +224,7 @@ export function MembersPanel() {
 
     setMessage("Member removed.");
     await loadMembers();
+    onMemberChange?.();
   }
 
   return (
