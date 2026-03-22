@@ -43,7 +43,11 @@ const categories = [
   "Other",
 ];
 
-export function TasksPanel() {
+export function TasksPanel({
+  refreshKey = 0,
+}: {
+  refreshKey?: number;
+}) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [title, setTitle] = useState("");
@@ -66,9 +70,9 @@ export function TasksPanel() {
   const [editDeadline, setEditDeadline] = useState("");
 
   useEffect(() => {
-    void loadTasks();
-    void loadMembers();
-  }, []);
+  void loadTasks();
+  void loadMembers();
+}, [refreshKey]);
 
   async function getUserId() {
   const {
