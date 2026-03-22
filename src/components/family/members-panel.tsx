@@ -112,8 +112,24 @@ export function MembersPanel({
     return roleColors[nextRole] || "border-neutral-700 bg-neutral-900 text-neutral-300";
   }
 
+  function confirmChildParentRule(nextRole: string) {
+    if (nextRole !== "Child") return true;
+
+    const confirmed = confirm(
+      "Adding a child means you are confirming that you are this child's parent. Continue?"
+    );
+
+    if (!confirmed) {
+      setMessage("Child members can only be added by their parent.");
+      return false;
+    }
+
+    return true;
+  }
+
   async function addMember() {
     if (!name.trim()) return;
+    if (!confirmChildParentRule(role)) return;
 
     const familyId = await getFamilyId();
     if (!familyId) return;
@@ -125,7 +141,7 @@ export function MembersPanel({
       family_id: familyId,
       name: name.trim(),
       role,
-      relationship: relationship.trim() || null,
+      relationship: relationship.trim() || (role === "Child" ? "Child" : null),
     });
 
     setLoading(false);
@@ -160,6 +176,7 @@ export function MembersPanel({
 
   async function saveMember(memberId: string) {
     if (!editName.trim()) return;
+    if (!confirmChildParentRule(editRole)) return;
 
     setLoading(true);
     setMessage(null);
@@ -169,7 +186,7 @@ export function MembersPanel({
       .update({
         name: editName.trim(),
         role: editRole,
-        relationship: editRelationship.trim() || null,
+        relationship: editRelationship.trim() || (editRole === "Child" ? "Child" : null),
       })
       .eq("id", memberId);
 
@@ -382,7 +399,8 @@ export function MembersPanel({
               <div className="rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/60 p-5 text-sm text-neutral-400 md:col-span-2">
                 <p className="font-medium text-white">No family members yet</p>
                 <p className="mt-2 leading-6 text-neutral-400">
-                  Add members here so they can be assigned to tasks and included in future planning.
+                  Add members here so they can be assigned to tasks and included in future
+                  planning.
                 </p>
               </div>
             ) : null}
