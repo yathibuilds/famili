@@ -23,7 +23,7 @@ async function ensureFamily() {
 
   if (userError || !user) return;
 
-  const { data, error: familyLookupError } = await supabase
+  const { data: existingFamily, error: familyLookupError } = await supabase
     .from("families")
     .select("id")
     .eq("created_by", user.id)
@@ -33,14 +33,53 @@ async function ensureFamily() {
     throw familyLookupError;
   }
 
-  if (!data) {
-    const { error: insertError } = await supabase.from("families").insert({
-      name: "My Family",
-      created_by: user.id,
-    });
+  let familyId = existingFamily?.id ?? null;
+
+  if (!familyId) {
+    const { data: insertedFamily, error: insertError } = await supabase
+      .from("families")
+      .insert({
+        name: "My Family",
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       throw insertError;
+    }
+
+    familyId = insertedFamily.id;
+  }
+
+  const { data: existingMember, error: memberLookupError } = await supabase
+    .from("family_members")
+    .select("id")
+    .eq("family_id", familyId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (memberLookupError) {
+    throw memberLookupError;
+  }
+
+  if (!existingMember) {
+    const fallbackName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split("@")[0] ||
+      "Me";
+
+    const { error: memberInsertError } = await supabase.from("family_members").insert({
+      family_id: familyId,
+      name: fallbackName,
+      user_id: user.id,
+      role: "Admin",
+      relationship: "Self",
+    });
+
+    if (memberInsertError) {
+      throw memberInsertError;
     }
   }
 }
