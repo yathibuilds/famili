@@ -21,7 +21,7 @@ type ProfileState = {
   email: string | null;
 };
 
-async function ensureProfileAndCalendar(session: Session) {
+async function ensureProfileAndCalendars(session: Session) {
   const user = session.user;
   const email = user.email ?? "";
   const displayName =
@@ -92,6 +92,48 @@ async function ensureProfileAndCalendar(session: Session) {
 
     if (createCalendarError) throw createCalendarError;
   }
+
+  const { data: familyMemberships, error: familyMembershipsError } = await supabase
+    .from("family_memberships")
+    .select("family_id")
+    .eq("user_id", user.id);
+
+  if (familyMembershipsError) throw familyMembershipsError;
+
+  const familyIds = (familyMemberships ?? []).map((row) => row.family_id).filter(Boolean);
+
+  if (familyIds.length > 0) {
+    const { data: families, error: familiesError } = await supabase
+      .from("families")
+      .select("id,name")
+      .in("id", familyIds);
+
+    if (familiesError) throw familiesError;
+
+    for (const family of families ?? []) {
+      const { data: existingFamilyCalendar, error: familyCalendarLookupError } = await supabase
+        .from("calendars")
+        .select("id")
+        .eq("family_id", family.id)
+        .maybeSingle();
+
+      if (familyCalendarLookupError) throw familyCalendarLookupError;
+
+      if (!existingFamilyCalendar) {
+        const { error: createFamilyCalendarError } = await supabase.from("calendars").insert({
+          owner_user_id: user.id,
+          family_id: family.id,
+          name: `${family.name} Calendar`,
+          source_type: "native",
+          visibility: "family",
+          busy_mode: "busy",
+          is_default: false,
+        });
+
+        if (createFamilyCalendarError) throw createFamilyCalendarError;
+      }
+    }
+  }
 }
 
 async function loadProfile(userId: string): Promise<ProfileState | null> {
@@ -138,8 +180,7 @@ function Dashboard({
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-300">
                 Your account stays individual by default. Family access only opens when you
-                create or accept an invite. Calendar, circles, task blocking, and email invite
-                scaffolding are now connected in one flow.
+                create or accept an invite. Missing personal and family calendars now self-heal on login.
               </p>
             </div>
 
@@ -171,7 +212,7 @@ function Dashboard({
             ["Individual first", "Your account starts private and separate by default."],
             ["Invite-only family", "Family membership now happens only through email invites."],
             ["Calendar ready", "Agenda, attendees, circle sharing, and family calendar support are connected."],
-            ["Self-healing login", "Missing profile or personal calendar records are auto-created on login."],
+            ["Self-healing login", "Missing profile, personal calendar, and family calendars are auto-created on login."],
           ].map(([title, note]) => (
             <article
               key={title}
@@ -438,7 +479,7 @@ export function AppShell() {
       }
 
       try {
-        await ensureProfileAndCalendar(nextSession);
+        await ensureProfileAndCalendars(nextSession);
         const nextProfile = await loadProfile(nextSession.user.id);
         if (!mounted) return;
         setProfile(nextProfile);
