@@ -134,6 +134,29 @@ export function FamilyAccessPanel({
     if (inviteRole !== "child") setChildGuardianConfirmed(false);
   }, [inviteRole]);
 
+  async function ensureFamilyCalendar(familyId: string, familyName: string) {
+    const { data: existing, error: existingError } = await supabase
+      .from("calendars")
+      .select("id")
+      .eq("family_id", familyId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    if (!existing?.id) {
+      const { error: insertError } = await supabase.from("calendars").insert({
+        owner_user_id: session.user.id,
+        family_id: familyId,
+        name: `${familyName} Calendar`,
+        source_type: "native",
+        visibility: "family",
+        busy_mode: "busy",
+        is_default: false,
+      });
+      if (insertError) throw insertError;
+    }
+  }
+
   async function refreshData() {
     setLoading(true);
     setMessage(null);
@@ -243,8 +266,20 @@ export function FamilyAccessPanel({
       return;
     }
 
+
+    try {
+      await ensureFamilyCalendar(family.id, family.name);
+    } catch (error) {
+      const nextMessage =
+        error instanceof Error ? error.message : "Family created, but family calendar setup failed.";
+      setMessage({ type: "warning", text: nextMessage });
+      setLoading(false);
+      await refreshData();
+      return;
+    }
+
     setFamilyName("");
-    setMessage({ type: "success", text: "Family created. You can now invite people by email." });
+    setMessage({ type: "success", text: "Family created and family calendar added." });
     await refreshData();
   }
 
@@ -307,15 +342,13 @@ export function FamilyAccessPanel({
       }),
     });
 
-    let emailMessage = "Invite saved.";
     if (!response.ok) {
+      let warningMessage = "Invite saved, but email was not sent.";
       try {
         const payload = await response.json();
-        emailMessage = payload?.message || "Invite saved, but email was not sent.";
-      } catch {
-        emailMessage = "Invite saved, but email was not sent.";
-      }
-      setMessage({ type: "warning", text: emailMessage });
+        warningMessage = payload?.message || warningMessage;
+      } catch {}
+      setMessage({ type: "warning", text: warningMessage });
     } else {
       setMessage({ type: "success", text: "Invite saved and email delivery was attempted." });
     }
@@ -362,6 +395,13 @@ export function FamilyAccessPanel({
         setMessage({ type: "error", text: membershipError.message });
         setLoading(false);
         return;
+      }
+
+      const matchedFamily = families.find((family) => family.id === invite.family_id);
+      if (matchedFamily) {
+        try {
+          await ensureFamilyCalendar(matchedFamily.id, matchedFamily.name);
+        } catch {}
       }
     }
 
@@ -495,10 +535,6 @@ export function FamilyAccessPanel({
 
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
             <h3 className="text-lg font-semibold text-white">Invite by email</h3>
-            <p className="mt-2 text-sm leading-6 text-neutral-400">
-              Family members only join level 2 after they receive and accept an invite.
-            </p>
-
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-neutral-200">Invite email</label>
