@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/sidebar";
 import { FamilyAccessPanel } from "@/components/family/family-access-panel";
 import { CalendarOverview } from "@/components/calendar/calendar-overview";
+import { TaskCalendarPanel } from "@/components/tasks/task-calendar-panel";
+import { CirclesPanel } from "@/components/circles/circles-panel";
 
 type AuthTab = "login" | "signup";
 
@@ -63,8 +65,8 @@ function Dashboard({
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-300">
                 Your account stays individual by default. Family access only opens when you
-                create or accept an invite. Calendar is now ready for personal planning and
-                shared family scheduling foundations.
+                create or accept an invite. Calendar, circles, task blocking, and email invite
+                scaffolding are now connected in one flow.
               </p>
             </div>
 
@@ -91,11 +93,12 @@ function Dashboard({
           </div>
         </header>
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-4">
           {[
             ["Individual first", "Your account starts private and separate by default."],
             ["Invite-only family", "Family membership now happens only through email invites."],
-            ["Calendar ready", "Agenda, mini month view, native event creation, and task due surfacing are now connected."],
+            ["Calendar ready", "Agenda, mini month, attendees, and circle sharing are connected."],
+            ["Task blocking", "Tasks can now optionally reserve time in your calendar."],
           ].map(([title, note]) => (
             <article
               key={title}
@@ -108,6 +111,8 @@ function Dashboard({
         </section>
 
         <CalendarOverview session={session} profile={profile} />
+        <TaskCalendarPanel session={session} profile={profile} />
+        <CirclesPanel session={session} profile={profile} />
         <FamilyAccessPanel session={session} profile={profile} />
       </section>
     </main>
@@ -206,19 +211,6 @@ function AuthCard() {
             Start as an individual. Add family only by invite. Keep your private world
             separate until you choose to share it.
           </p>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {[
-              ["Private by default", "No family data is created or shared automatically."],
-              ["Invite-only family", "Family members join your level 2 container by email invite."],
-              ["Protected access", "Two-factor authentication remains available for security-sensitive actions."],
-            ].map(([title, text]) => (
-              <div key={title} className="rounded-2xl border border-neutral-800 bg-neutral-950/50 p-4">
-                <p className="text-sm font-medium text-white">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-neutral-400">{text}</p>
-              </div>
-            ))}
-          </div>
         </section>
 
         <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-2xl shadow-black/20">
@@ -410,9 +402,7 @@ export function AppShell() {
         console.error("Auth/session setup failed", error);
         setRequiresMfa(false);
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       }
     }
 

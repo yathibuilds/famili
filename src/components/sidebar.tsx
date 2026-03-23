@@ -3,6 +3,8 @@ import Link from "next/link";
 const navItems = [
   ["Dashboard", "#dashboard"],
   ["Calendar", "#calendar"],
+  ["Task blocking", "#task-blocking"],
+  ["Circles", "#circles"],
   ["Family Access", "#family"],
   ["Security", "/settings/security"],
 ] as const;
@@ -17,7 +19,7 @@ export function Sidebar() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Famili</h1>
           <p className="text-sm leading-6 text-neutral-400">
-            Private life hub with invite-only family access and a unified planning calendar.
+            Private life hub with invite-only family access, circles, tasks, and a unified calendar.
           </p>
         </div>
 
@@ -36,10 +38,10 @@ export function Sidebar() {
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-5 shadow-xl shadow-black/10 lg:mt-auto">
           <p className="text-sm font-medium text-white">Build status</p>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-400">
-            <li>Individual-first onboarding live</li>
-            <li>Invite-only family model live</li>
-            <li>Calendar foundation live</li>
-            <li>2FA management preserved</li>
+            <li>Email invite scaffold added</li>
+            <li>Calendar attendees and circle share added</li>
+            <li>Task blocking added</li>
+            <li>Circle management added</li>
           </ul>
         </div>
       </div>
