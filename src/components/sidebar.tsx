@@ -2,8 +2,7 @@ import Link from "next/link";
 
 const navItems = [
   ["Dashboard", "#dashboard"],
-  ["Tasks", "#tasks"],
-  ["Family", "#family"],
+  ["Family Access", "#family"],
   ["Security", "/settings/security"],
 ] as const;
 
@@ -15,9 +14,9 @@ export function Sidebar() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
             Home operating system
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">FamiliHub</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Famili</h1>
           <p className="text-sm leading-6 text-neutral-400">
-            Private home hub for tasks, members, and secure family coordination.
+            Private life hub with invite-only family access and protected coordination.
           </p>
         </div>
 
@@ -36,9 +35,9 @@ export function Sidebar() {
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-5 shadow-xl shadow-black/10 lg:mt-auto">
           <p className="text-sm font-medium text-white">Build status</p>
           <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-400">
-            <li>UI unified</li>
-            <li>Tasks and members connected</li>
-            <li>2FA management available</li>
+            <li>Individual-first onboarding live</li>
+            <li>Invite-only family model live</li>
+            <li>2FA management preserved</li>
           </ul>
         </div>
       </div>
