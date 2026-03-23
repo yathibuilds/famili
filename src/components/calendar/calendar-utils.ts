@@ -2,22 +2,11 @@ export function startOfMonth(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-export function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
-}
-
 export function startOfWeek(date: Date) {
   const next = new Date(date);
   const day = next.getDay();
   next.setDate(next.getDate() - day);
   next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-export function endOfWeek(date: Date) {
-  const next = startOfWeek(date);
-  next.setDate(next.getDate() + 6);
-  next.setHours(23, 59, 59, 999);
   return next;
 }
 

@@ -57,8 +57,6 @@ type TaskRecord = {
   start_date: string | null;
   end_date: string | null;
   status: "pending" | "done" | "cancelled";
-  visibility: "only_me" | "family" | "circle";
-  calendar_block_enabled: boolean;
 };
 
 type ReminderDraft = {
@@ -70,6 +68,19 @@ type MessageState =
   | { type: "success" | "error" | "warning"; text: string }
   | null;
 
+type MembershipRecord = {
+  family_id: string;
+  user_id: string;
+  display_label: string | null;
+  role: string;
+};
+
+type CircleRecord = {
+  id: string;
+  name: string;
+  family_id: string | null;
+};
+
 function messageClasses(type: "success" | "error" | "warning") {
   if (type === "error") return "border-red-500/30 bg-red-500/10 text-red-200";
   if (type === "warning") return "border-amber-500/30 bg-amber-500/10 text-amber-200";
@@ -78,15 +89,8 @@ function messageClasses(type: "success" | "error" | "warning") {
 
 function isTaskActiveOnDate(task: TaskRecord, dateKey: string) {
   if (task.status !== "pending") return false;
-
-  if (task.start_date && task.end_date) {
-    return task.start_date <= dateKey && task.end_date >= dateKey;
-  }
-
-  if (task.current_deadline) {
-    return task.current_deadline === dateKey;
-  }
-
+  if (task.start_date && task.end_date) return task.start_date <= dateKey && task.end_date >= dateKey;
+  if (task.current_deadline) return task.current_deadline === dateKey;
   return false;
 }
 
@@ -103,6 +107,8 @@ export function CalendarOverview({
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [familyIds, setFamilyIds] = useState<string[]>([]);
+  const [memberships, setMemberships] = useState<MembershipRecord[]>([]);
+  const [circles, setCircles] = useState<CircleRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<MessageState>(null);
   const [tab, setTab] = useState<"agenda" | "month">("agenda");
@@ -114,6 +120,8 @@ export function CalendarOverview({
   const [allDay, setAllDay] = useState(false);
   const [visibility, setVisibility] = useState<"only_me" | "family" | "circle">("only_me");
   const [busyMode, setBusyMode] = useState<"busy" | "free">("busy");
+  const [selectedCircleId, setSelectedCircleId] = useState("");
+  const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<string[]>([]);
   const [startAt, setStartAt] = useState(() => toDateTimeLocalValue(new Date()));
   const [endAt, setEndAt] = useState(() => {
     const end = new Date();
@@ -132,9 +140,7 @@ export function CalendarOverview({
   }, [monthDate, session.user.id]);
 
   useEffect(() => {
-    if (!selectedCalendarId && calendars[0]) {
-      setSelectedCalendarId(calendars[0].id);
-    }
+    if (!selectedCalendarId && calendars[0]) setSelectedCalendarId(calendars[0].id);
   }, [calendars, selectedCalendarId]);
 
   async function refreshCalendar() {
@@ -145,9 +151,9 @@ export function CalendarOverview({
     const monthStart = monthDays[0] ?? new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
     const monthEnd = monthDays[monthDays.length - 1] ?? new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
 
-    const [membershipResult, personalCalendarsResult, familyCalendarsResult, personalEventsResult, familyEventsResult, personalTasksResult, familyTasksResult] =
+    const [membershipResult, personalCalendarsResult, familyCalendarsResult, personalEventsResult, familyEventsResult, personalTasksResult, familyTasksResult, circlesResult] =
       await Promise.all([
-        supabase.from("family_memberships").select("family_id").eq("user_id", userId),
+        supabase.from("family_memberships").select("family_id,user_id,display_label,role").eq("user_id", userId),
         supabase.from("calendars").select("*").eq("owner_user_id", userId).order("created_at", { ascending: true }),
         supabase.from("calendars").select("*").not("family_id", "is", null).order("created_at", { ascending: true }),
         supabase
@@ -168,14 +174,13 @@ export function CalendarOverview({
           .from("tasks")
           .select("*")
           .eq("owner_user_id", userId)
-          .or(`current_deadline.gte.${toDateInputValue(monthStart)},start_date.gte.${toDateInputValue(monthStart)}`)
           .order("created_at", { ascending: false }),
         supabase
           .from("tasks")
           .select("*")
           .not("family_id", "is", null)
-          .or(`current_deadline.gte.${toDateInputValue(monthStart)},start_date.gte.${toDateInputValue(monthStart)}`)
           .order("created_at", { ascending: false }),
+        supabase.from("circles").select("id,name,family_id").order("created_at", { ascending: true }),
       ]);
 
     const firstError =
@@ -185,7 +190,8 @@ export function CalendarOverview({
       personalEventsResult.error ||
       familyEventsResult.error ||
       personalTasksResult.error ||
-      familyTasksResult.error;
+      familyTasksResult.error ||
+      circlesResult.error;
 
     if (firstError) {
       setMessage({ type: "error", text: firstError.message });
@@ -193,8 +199,10 @@ export function CalendarOverview({
       return;
     }
 
-    const nextFamilyIds = (membershipResult.data ?? []).map((item) => item.family_id);
+    const nextMemberships = (membershipResult.data ?? []) as MembershipRecord[];
+    const nextFamilyIds = nextMemberships.map((item) => item.family_id);
     setFamilyIds(nextFamilyIds);
+    setMemberships(nextMemberships);
 
     const nextCalendars = [
       ...(personalCalendarsResult.data ?? []),
@@ -217,9 +225,14 @@ export function CalendarOverview({
       ) as TaskRecord[]),
     ] as TaskRecord[];
 
+    const nextCircles = ((circlesResult.data ?? []).filter((circle) =>
+      circle.family_id ? nextFamilyIds.includes(circle.family_id) : true
+    ) as CircleRecord[]);
+
     setCalendars(nextCalendars);
     setEvents(nextEvents);
     setTasks(nextTasks);
+    setCircles(nextCircles);
     setLoading(false);
   }
 
@@ -259,13 +272,8 @@ export function CalendarOverview({
 
     const calendar = calendars.find((item) => item.id === selectedCalendarId);
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    const startDate = allDay
-      ? new Date(`${selectedDateKey}T00:00:00`)
-      : new Date(startAt);
-    const endDate = allDay
-      ? new Date(`${selectedDateKey}T23:59:00`)
-      : new Date(endAt);
+    const startDate = allDay ? new Date(`${selectedDateKey}T00:00:00`) : new Date(startAt);
+    const endDate = allDay ? new Date(`${selectedDateKey}T23:59:00`) : new Date(endAt);
 
     if (endDate < startDate) {
       setMessage({ type: "warning", text: "End time must be after start time." });
@@ -314,9 +322,61 @@ export function CalendarOverview({
       const { error: reminderError } = await supabase
         .from("calendar_event_reminders")
         .insert(validReminders);
-
       if (reminderError) {
         setMessage({ type: "error", text: reminderError.message });
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (selectedAttendeeIds.length > 0) {
+      const attendeeRows = selectedAttendeeIds.map((userId) => ({
+        event_id: insertedEvent.id,
+        user_id: userId,
+        invited_by_user_id: session.user.id,
+        response_status: "pending",
+        can_view_details: true,
+      }));
+
+      const { error: attendeeError } = await supabase
+        .from("calendar_event_attendees")
+        .insert(attendeeRows);
+
+      if (attendeeError) {
+        setMessage({ type: "error", text: attendeeError.message });
+        setLoading(false);
+        return;
+      }
+    }
+
+    const shareRows = [];
+    if (visibility === "family" && calendar?.family_id) {
+      shareRows.push({
+        event_id: insertedEvent.id,
+        target_type: "family",
+        target_user_id: null,
+        target_family_id: calendar.family_id,
+        target_circle_id: null,
+        shared_by_user_id: session.user.id,
+      });
+    }
+    if (visibility === "circle" && selectedCircleId) {
+      shareRows.push({
+        event_id: insertedEvent.id,
+        target_type: "circle",
+        target_user_id: null,
+        target_family_id: null,
+        target_circle_id: selectedCircleId,
+        shared_by_user_id: session.user.id,
+      });
+    }
+
+    if (shareRows.length > 0) {
+      const { error: shareError } = await supabase
+        .from("calendar_event_shares")
+        .insert(shareRows);
+      if (shareError) {
+        setMessage({ type: "error", text: shareError.message });
         setLoading(false);
         return;
       }
@@ -327,6 +387,8 @@ export function CalendarOverview({
     setEventLocation("");
     setVisibility("only_me");
     setBusyMode("busy");
+    setSelectedCircleId("");
+    setSelectedAttendeeIds([]);
     setAllDay(false);
     setReminders([{ offsetValue: "15", offsetUnit: "minutes" }]);
     setMessage({ type: "success", text: "Event created." });
@@ -361,6 +423,11 @@ export function CalendarOverview({
 
   const selectedDayEvents = eventsByDate.get(selectedDateKey) ?? [];
   const selectedDayTasks = tasksByDate.get(selectedDateKey) ?? [];
+  const shareableMembers = memberships.filter((item) =>
+    calendars.find((calendar) => calendar.id === selectedCalendarId)?.family_id
+      ? item.family_id === calendars.find((calendar) => calendar.id === selectedCalendarId)?.family_id
+      : false
+  );
 
   return (
     <section id="calendar" className="space-y-6">
@@ -370,8 +437,7 @@ export function CalendarOverview({
         </p>
         <h2 className="mt-3 text-2xl font-semibold">Unified planning view</h2>
         <p className="mt-2 text-sm leading-6 text-neutral-300">
-          Personal calendars, shared family calendars, and due tasks now appear in one place.
-          Tasks stay deadline-first and show as compact due indicators instead of all-day blocks.
+          Personal calendars, shared family calendars, due tasks, attendee invites, and circle sharing now sit in one place.
         </p>
       </div>
 
@@ -381,7 +447,7 @@ export function CalendarOverview({
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <section className="space-y-6">
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
             <div className="flex items-center justify-between">
@@ -453,9 +519,6 @@ export function CalendarOverview({
                           {event.title}
                         </div>
                       ))}
-                      {dayEvents.length > 2 ? (
-                        <div className="text-neutral-500">+{dayEvents.length - 2} more</div>
-                      ) : null}
                     </div>
                   </button>
                 );
@@ -466,7 +529,7 @@ export function CalendarOverview({
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
             <h3 className="text-lg font-semibold text-white">Create event</h3>
             <p className="mt-2 text-sm leading-6 text-neutral-400">
-              Create native events now. Shared scheduling and email sync can build on this.
+              Create native events now with attendees, reminders, and family or circle sharing.
             </p>
 
             <div className="mt-5 space-y-4">
@@ -538,6 +601,49 @@ export function CalendarOverview({
                       </select>
                     </div>
                   </div>
+
+                  {visibility === "circle" ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-neutral-200">Share to circle</label>
+                      <select
+                        value={selectedCircleId}
+                        onChange={(event) => setSelectedCircleId(event.target.value)}
+                        className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400"
+                      >
+                        <option value="">Select circle</option>
+                        {circles.map((circle) => (
+                          <option key={circle.id} value={circle.id}>
+                            {circle.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+
+                  {shareableMembers.length > 0 ? (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-neutral-200">Attendees</label>
+                      <div className="grid gap-2 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-3">
+                        {shareableMembers.map((member) => (
+                          <label key={member.user_id} className="flex items-center gap-3 text-sm text-neutral-300">
+                            <input
+                              type="checkbox"
+                              checked={selectedAttendeeIds.includes(member.user_id)}
+                              onChange={(event) =>
+                                setSelectedAttendeeIds((prev) =>
+                                  event.target.checked
+                                    ? [...prev, member.user_id]
+                                    : prev.filter((id) => id !== member.user_id)
+                                )
+                              }
+                              className="h-4 w-4 rounded border-neutral-600 bg-neutral-950 text-cyan-400 focus:ring-cyan-400"
+                            />
+                            <span>{member.display_label || member.role}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <label className="flex items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/70 px-4 py-3 text-sm text-neutral-300">
                     <input
@@ -677,9 +783,7 @@ export function CalendarOverview({
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-white">Detailed view</h3>
-                <p className="mt-2 text-sm leading-6 text-neutral-400">
-                  {formatDayTitle(selectedDate)}
-                </p>
+                <p className="mt-2 text-sm leading-6 text-neutral-400">{formatDayTitle(selectedDate)}</p>
               </div>
 
               <div className="flex gap-2">
@@ -792,10 +896,7 @@ export function CalendarOverview({
                             : "border-neutral-800 bg-neutral-950/70"
                         }`}
                       >
-                        <button
-                          onClick={() => setSelectedDateKey(dayKey)}
-                          className="text-left"
-                        >
+                        <button onClick={() => setSelectedDateKey(dayKey)} className="text-left">
                           <p className="text-sm font-semibold text-white">{formatDayTitle(day)}</p>
                         </button>
 
@@ -805,11 +906,6 @@ export function CalendarOverview({
                               Tasks due: {dayTasks.length}
                             </div>
                           ) : null}
-
-                          {dayEvents.length === 0 && dayTasks.length === 0 ? (
-                            <p className="text-sm text-neutral-500">Nothing planned yet.</p>
-                          ) : null}
-
                           {dayEvents.map((event) => (
                             <div
                               key={event.id}
@@ -821,6 +917,9 @@ export function CalendarOverview({
                               </p>
                             </div>
                           ))}
+                          {dayEvents.length === 0 && dayTasks.length === 0 ? (
+                            <p className="text-sm text-neutral-500">Nothing planned yet.</p>
+                          ) : null}
                         </div>
                       </article>
                     );
