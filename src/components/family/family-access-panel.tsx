@@ -131,9 +131,7 @@ export function FamilyAccessPanel({
   }, [families, selectedFamilyId]);
 
   useEffect(() => {
-    if (inviteRole !== "child") {
-      setChildGuardianConfirmed(false);
-    }
+    if (inviteRole !== "child") setChildGuardianConfirmed(false);
   }, [inviteRole]);
 
   async function refreshData() {
@@ -294,15 +292,39 @@ export function FamilyAccessPanel({
       return;
     }
 
+    const response = await fetch("/api/invites/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        invitedEmail: inviteEmail.trim().toLowerCase(),
+        familyName: primaryFamily?.name ?? "Famili family",
+        inviteToken,
+        role: inviteRole,
+        displayLabel: inviteDisplayLabel.trim() || null,
+        inviterName: profile?.display_name || session.user.user_metadata?.display_name || "A family member",
+      }),
+    });
+
+    let emailMessage = "Invite saved.";
+    if (!response.ok) {
+      try {
+        const payload = await response.json();
+        emailMessage = payload?.message || "Invite saved, but email was not sent.";
+      } catch {
+        emailMessage = "Invite saved, but email was not sent.";
+      }
+      setMessage({ type: "warning", text: emailMessage });
+    } else {
+      setMessage({ type: "success", text: "Invite saved and email delivery was attempted." });
+    }
+
     setInviteEmail("");
     setInviteRole("adult_member");
     setInviteRelationship("other");
     setInviteDisplayLabel("");
     setChildGuardianConfirmed(false);
-    setMessage({
-      type: "success",
-      text: "Invite saved. Email sending is not wired yet, so no mail has gone out yet.",
-    });
     await refreshData();
   }
 
@@ -358,8 +380,7 @@ export function FamilyAccessPanel({
         </p>
         <h2 className="mt-3 text-2xl font-semibold">Invite-only family container</h2>
         <p className="mt-2 text-sm leading-6 text-neutral-300">
-          Individual accounts stay separate until someone creates a family or accepts an
-          invite. This protects privacy while the rest of the rebuild continues.
+          Individual accounts stay separate until someone creates a family or accepts an invite.
         </p>
       </div>
 
@@ -567,26 +588,12 @@ export function FamilyAccessPanel({
               }
               className="mt-5 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? "Saving..." : "Save invite"}
+              {loading ? "Saving..." : "Save and send invite"}
             </button>
-
-            {!primaryFamily ? (
-              <p className="mt-3 text-sm text-neutral-500">
-                Create or select a family before sending invites.
-              </p>
-            ) : null}
-
-            <p className="mt-3 text-sm text-neutral-500">
-              Email delivery is not configured yet. This currently saves the invite record only.
-            </p>
           </section>
 
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
             <h3 className="text-lg font-semibold text-white">Pending invites for you</h3>
-            <p className="mt-2 text-sm leading-6 text-neutral-400">
-              These are invites sent to your current email account.
-            </p>
-
             <div className="mt-5 grid gap-4">
               {invites.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/60 p-5 text-sm text-neutral-400">
@@ -604,12 +611,8 @@ export function FamilyAccessPanel({
                       <p className="text-sm font-semibold text-white">
                         {invite.invited_display_label || invite.invited_relationship.replaceAll("_", " ")}
                       </p>
-                      <p className="mt-1 text-sm text-neutral-400">
-                        Status: {invite.status}
-                      </p>
-                      <p className="mt-1 text-sm text-neutral-500">
-                        Expires: {formatDate(invite.expires_at)}
-                      </p>
+                      <p className="mt-1 text-sm text-neutral-400">Status: {invite.status}</p>
+                      <p className="mt-1 text-sm text-neutral-500">Expires: {formatDate(invite.expires_at)}</p>
                     </div>
 
                     {invite.status === "pending" ? (
