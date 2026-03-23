@@ -21,6 +21,79 @@ type ProfileState = {
   email: string | null;
 };
 
+async function ensureProfileAndCalendar(session: Session) {
+  const user = session.user;
+  const email = user.email ?? "";
+  const displayName =
+    user.user_metadata?.display_name ||
+    user.user_metadata?.full_name ||
+    email.split("@")[0] ||
+    "Famili User";
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const currentYear = new Date().getFullYear();
+
+  const { data: existingProfile, error: profileLookupError } = await supabase
+    .from("profiles")
+    .select("id,display_name,email,birth_month,birth_year")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileLookupError) throw profileLookupError;
+
+  if (!existingProfile) {
+    const fallbackBirthMonth = Number(user.user_metadata?.birth_month ?? 1);
+    const fallbackBirthYear = Number(user.user_metadata?.birth_year ?? currentYear - 18);
+
+    const { error: createProfileError } = await supabase.from("profiles").insert({
+      id: user.id,
+      email,
+      display_name: displayName,
+      birth_month: Math.min(Math.max(fallbackBirthMonth, 1), 12),
+      birth_year: Math.min(Math.max(fallbackBirthYear, 1900), currentYear),
+      home_timezone: timezone,
+      current_timezone: timezone,
+    });
+
+    if (createProfileError) throw createProfileError;
+  } else {
+    const updates: Record<string, string | number> = {};
+    if (!existingProfile.email && email) updates.email = email;
+    if (!existingProfile.display_name && displayName) updates.display_name = displayName;
+
+    if (Object.keys(updates).length > 0) {
+      const { error: updateProfileError } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", user.id);
+
+      if (updateProfileError) throw updateProfileError;
+    }
+  }
+
+  const { data: existingCalendar, error: calendarLookupError } = await supabase
+    .from("calendars")
+    .select("id")
+    .eq("owner_user_id", user.id)
+    .is("family_id", null)
+    .maybeSingle();
+
+  if (calendarLookupError) throw calendarLookupError;
+
+  if (!existingCalendar) {
+    const { error: createCalendarError } = await supabase.from("calendars").insert({
+      owner_user_id: user.id,
+      family_id: null,
+      name: `${displayName} Calendar`,
+      source_type: "native",
+      visibility: "only_me",
+      busy_mode: "busy",
+      is_default: true,
+    });
+
+    if (createCalendarError) throw createCalendarError;
+  }
+}
+
 async function loadProfile(userId: string): Promise<ProfileState | null> {
   const { data, error } = await supabase
     .from("profiles")
@@ -97,8 +170,8 @@ function Dashboard({
           {[
             ["Individual first", "Your account starts private and separate by default."],
             ["Invite-only family", "Family membership now happens only through email invites."],
-            ["Calendar ready", "Agenda, mini month, attendees, and circle sharing are connected."],
-            ["Task blocking", "Tasks can now optionally reserve time in your calendar."],
+            ["Calendar ready", "Agenda, attendees, circle sharing, and family calendar support are connected."],
+            ["Self-healing login", "Missing profile or personal calendar records are auto-created on login."],
           ].map(([title, note]) => (
             <article
               key={title}
@@ -166,6 +239,8 @@ function AuthCard() {
         options: {
           data: {
             display_name: displayName.trim(),
+            birth_month: Number(birthMonth),
+            birth_year: Number(birthYear),
           },
         },
       });
@@ -363,6 +438,7 @@ export function AppShell() {
       }
 
       try {
+        await ensureProfileAndCalendar(nextSession);
         const nextProfile = await loadProfile(nextSession.user.id);
         if (!mounted) return;
         setProfile(nextProfile);
