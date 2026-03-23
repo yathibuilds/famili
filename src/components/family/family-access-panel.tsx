@@ -9,6 +9,10 @@ type ProfileState = {
   email: string | null;
 };
 
+type MessageState =
+  | { type: "success" | "error" | "warning"; text: string }
+  | null;
+
 type FamilyRecord = {
   id: string;
   name: string;
@@ -78,6 +82,12 @@ function formatDate(dateValue?: string | null) {
   }).format(new Date(dateValue));
 }
 
+function messageClasses(type: "success" | "error" | "warning") {
+  if (type === "error") return "border-red-500/30 bg-red-500/10 text-red-200";
+  if (type === "warning") return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+}
+
 export function FamilyAccessPanel({
   session,
   profile,
@@ -88,7 +98,7 @@ export function FamilyAccessPanel({
   const [families, setFamilies] = useState<FamilyRecord[]>([]);
   const [memberships, setMemberships] = useState<MembershipRecord[]>([]);
   const [invites, setInvites] = useState<InviteRecord[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<MessageState>(null);
   const [loading, setLoading] = useState(false);
 
   const [familyName, setFamilyName] = useState("");
@@ -103,6 +113,7 @@ export function FamilyAccessPanel({
   const [inviteRelationship, setInviteRelationship] = useState("other");
   const [inviteDisplayLabel, setInviteDisplayLabel] = useState("");
   const [selectedFamilyId, setSelectedFamilyId] = useState("");
+  const [childGuardianConfirmed, setChildGuardianConfirmed] = useState(false);
 
   const primaryFamily = useMemo(
     () => families.find((family) => family.id === selectedFamilyId) ?? families[0] ?? null,
@@ -118,6 +129,12 @@ export function FamilyAccessPanel({
       setSelectedFamilyId(families[0].id);
     }
   }, [families, selectedFamilyId]);
+
+  useEffect(() => {
+    if (inviteRole !== "child") {
+      setChildGuardianConfirmed(false);
+    }
+  }, [inviteRole]);
 
   async function refreshData() {
     setLoading(true);
@@ -145,12 +162,14 @@ export function FamilyAccessPanel({
     ]);
 
     if (familiesResult.error || membershipsResult.error || invitesResult.error) {
-      setMessage(
-        familiesResult.error?.message ||
+      setMessage({
+        type: "error",
+        text:
+          familiesResult.error?.message ||
           membershipsResult.error?.message ||
           invitesResult.error?.message ||
-          "Unable to load family access."
-      );
+          "Unable to load family access.",
+      });
       setLoading(false);
       return;
     }
@@ -169,7 +188,7 @@ export function FamilyAccessPanel({
         : { data: [], error: null };
 
     if (extraFamilies.error) {
-      setMessage(extraFamilies.error.message);
+      setMessage({ type: "error", text: extraFamilies.error.message });
       setLoading(false);
       return;
     }
@@ -187,7 +206,7 @@ export function FamilyAccessPanel({
 
   async function createFamily() {
     if (!familyName.trim()) {
-      setMessage("Please enter a family name.");
+      setMessage({ type: "warning", text: "Please enter a family name." });
       return;
     }
 
@@ -205,7 +224,7 @@ export function FamilyAccessPanel({
       .single();
 
     if (familyError || !family) {
-      setMessage(familyError?.message ?? "Could not create family.");
+      setMessage({ type: "error", text: familyError?.message ?? "Could not create family." });
       setLoading(false);
       return;
     }
@@ -221,24 +240,31 @@ export function FamilyAccessPanel({
     });
 
     if (membershipError) {
-      setMessage(membershipError.message);
+      setMessage({ type: "error", text: membershipError.message });
       setLoading(false);
       return;
     }
 
     setFamilyName("");
-    setMessage("Family created. You can now invite people by email.");
+    setMessage({ type: "success", text: "Family created. You can now invite people by email." });
     await refreshData();
   }
 
   async function sendInvite() {
     const familyId = primaryFamily?.id;
     if (!familyId) {
-      setMessage("Create or select a family first.");
+      setMessage({ type: "warning", text: "Create or select a family first." });
       return;
     }
     if (!inviteEmail.trim()) {
-      setMessage("Please enter an email address.");
+      setMessage({ type: "warning", text: "Please enter an email address." });
+      return;
+    }
+    if (inviteRole === "child" && !childGuardianConfirmed) {
+      setMessage({
+        type: "warning",
+        text: "Please confirm that you are this child's parent or authorized guardian before sending the invite.",
+      });
       return;
     }
 
@@ -263,7 +289,7 @@ export function FamilyAccessPanel({
     });
 
     if (error) {
-      setMessage(error.message);
+      setMessage({ type: "error", text: error.message });
       setLoading(false);
       return;
     }
@@ -272,7 +298,11 @@ export function FamilyAccessPanel({
     setInviteRole("adult_member");
     setInviteRelationship("other");
     setInviteDisplayLabel("");
-    setMessage("Invite saved. You can connect email delivery to this record next.");
+    setChildGuardianConfirmed(false);
+    setMessage({
+      type: "success",
+      text: "Invite saved. Email sending is not wired yet, so no mail has gone out yet.",
+    });
     await refreshData();
   }
 
@@ -290,7 +320,7 @@ export function FamilyAccessPanel({
       .eq("id", invite.id);
 
     if (inviteError) {
-      setMessage(inviteError.message);
+      setMessage({ type: "error", text: inviteError.message });
       setLoading(false);
       return;
     }
@@ -307,13 +337,16 @@ export function FamilyAccessPanel({
       });
 
       if (membershipError) {
-        setMessage(membershipError.message);
+        setMessage({ type: "error", text: membershipError.message });
         setLoading(false);
         return;
       }
     }
 
-    setMessage(nextStatus === "accepted" ? "Invite accepted." : "Invite declined.");
+    setMessage({
+      type: "success",
+      text: nextStatus === "accepted" ? "Invite accepted." : "Invite declined.",
+    });
     await refreshData();
   }
 
@@ -331,8 +364,8 @@ export function FamilyAccessPanel({
       </div>
 
       {message ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/80 px-4 py-3 text-sm text-neutral-300">
-          {message}
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${messageClasses(message.type)}`}>
+          {message.text}
         </div>
       ) : null}
 
@@ -501,9 +534,37 @@ export function FamilyAccessPanel({
               </div>
             </div>
 
+            {inviteRole === "child" ? (
+              <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                <p className="font-medium text-amber-100">Child protection check</p>
+                <p className="mt-2 leading-6">
+                  Children are the most protected members in Famili. Please confirm that you are
+                  this child&apos;s parent or an authorized guardian before continuing.
+                </p>
+
+                <label className="mt-3 flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={childGuardianConfirmed}
+                    onChange={(event) => setChildGuardianConfirmed(event.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-neutral-600 bg-neutral-950 text-cyan-400 focus:ring-cyan-400"
+                  />
+                  <span>
+                    I confirm that I am this child&apos;s parent or authorized guardian, and I
+                    understand child-related access must remain highly restricted.
+                  </span>
+                </label>
+              </div>
+            ) : null}
+
             <button
               onClick={() => void sendInvite()}
-              disabled={loading || !inviteEmail.trim() || !primaryFamily}
+              disabled={
+                loading ||
+                !inviteEmail.trim() ||
+                !primaryFamily ||
+                (inviteRole === "child" && !childGuardianConfirmed)
+              }
               className="mt-5 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Saving..." : "Save invite"}
@@ -514,6 +575,10 @@ export function FamilyAccessPanel({
                 Create or select a family before sending invites.
               </p>
             ) : null}
+
+            <p className="mt-3 text-sm text-neutral-500">
+              Email delivery is not configured yet. This currently saves the invite record only.
+            </p>
           </section>
 
           <section className="rounded-3xl border border-neutral-800 bg-neutral-900/80 p-6 shadow-xl shadow-black/10">
