@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { Sidebar } from "@/components/sidebar";
 import { FamilyAccessPanel } from "@/components/family/family-access-panel";
+import { CalendarOverview } from "@/components/calendar/calendar-overview";
 
 type AuthTab = "login" | "signup";
 
@@ -62,16 +63,17 @@ function Dashboard({
               </h1>
               <p className="mt-3 text-sm leading-6 text-neutral-300">
                 Your account stays individual by default. Family access only opens when you
-                create or accept an invite.
+                create or accept an invite. Calendar is now ready for personal planning and
+                shared family scheduling foundations.
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <a
-                href="#family"
+                href="#calendar"
                 className="rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-cyan-300"
               >
-                Manage family access
+                Open calendar
               </a>
               <a
                 href="/settings/security"
@@ -93,7 +95,7 @@ function Dashboard({
           {[
             ["Individual first", "Your account starts private and separate by default."],
             ["Invite-only family", "Family membership now happens only through email invites."],
-            ["2FA preserved", "Security setup stays available while the rebuild continues."],
+            ["Calendar ready", "Agenda, mini month view, native event creation, and task due surfacing are now connected."],
           ].map(([title, note]) => (
             <article
               key={title}
@@ -105,6 +107,7 @@ function Dashboard({
           ))}
         </section>
 
+        <CalendarOverview session={session} profile={profile} />
         <FamilyAccessPanel session={session} profile={profile} />
       </section>
     </main>

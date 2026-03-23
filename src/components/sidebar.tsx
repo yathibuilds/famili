@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const navItems = [
   ["Dashboard", "#dashboard"],
+  ["Calendar", "#calendar"],
   ["Family Access", "#family"],
   ["Security", "/settings/security"],
 ] as const;
@@ -16,7 +17,7 @@ export function Sidebar() {
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Famili</h1>
           <p className="text-sm leading-6 text-neutral-400">
-            Private life hub with invite-only family access and protected coordination.
+            Private life hub with invite-only family access and a unified planning calendar.
           </p>
         </div>
 
@@ -37,6 +38,7 @@ export function Sidebar() {
           <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-400">
             <li>Individual-first onboarding live</li>
             <li>Invite-only family model live</li>
+            <li>Calendar foundation live</li>
             <li>2FA management preserved</li>
           </ul>
         </div>
